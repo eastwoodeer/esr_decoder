@@ -16,8 +16,6 @@ struct field {
 	struct field *prev;
 };
 
-static struct field il;
-
 u64 get_bits(u64 reg, size_t start, size_t end)
 {
 	u64 width = end - start + 1;
@@ -80,11 +78,15 @@ void print_field(struct field *head)
 	}
 }
 
-void print_field_with_desc(struct field *field, char *desc)
+typedef void (*decode_iss_fn)(struct field *iss);
+
+void print_ec(struct field *ec, char *desc, struct field *il,
+	      decode_iss_fn print_iss_desc, struct field *iss)
 {
-	print_field(&il);
-	field->desc = desc;
-	print_field(field);
+	ec->desc = desc;
+	print_field(ec);
+	print_field(il);
+	print_iss_desc(iss);
 }
 
 void describe_il(struct field *field)
@@ -461,22 +463,20 @@ void decode_iss_wf(struct field *iss)
 	print_field(iss);
 }
 
-void decode_ec(struct field *ec, struct field *iss)
+void decode_with_ec(struct field *ec, struct field *il, struct field *iss)
 {
 	switch (ec->value) {
 	case 0b000000:
-		print_field_with_desc(ec, "Unknown reason");
-		decode_iss_res0(iss);
+		print_ec(ec, "Unknown reason", il, decode_iss_res0, iss);
 		break;
 	case 0b000001:
-		print_field_with_desc(ec, "Wrapped WF* instruction execution");
-		decode_iss_wf(iss);
+		print_ec(ec, "Wrapped WF* instruction execution", il,
+			 decode_iss_wf, iss);
 		break;
 	case 0b100101:
-		print_field_with_desc(
-			ec,
-			"Data Abort taken without a change in Exception level");
-		decode_iss_data_abort(iss);
+		print_ec(ec,
+			 "Data Abort taken without a change in Exception level",
+			 il, decode_iss_data_abort, iss);
 		break;
 	}
 }
@@ -486,6 +486,7 @@ void decode(u64 esr)
 	struct field res0;
 	struct field iss2;
 	struct field ec;
+	struct field il;
 	struct field iss;
 
 	create_field(esr, "RES0", "Instruction Specific Syndrome", 37, 63, NULL,
@@ -498,9 +499,8 @@ void decode(u64 esr)
 		     &iss);
 	print_field(&res0);
 	print_field(&iss2);
-	/* print_field(&ec); */
 
-	decode_ec(&ec, &iss);
+	decode_with_ec(&ec, &il, &iss);
 }
 
 int main(int argc, char *argv[])
