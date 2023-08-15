@@ -23,8 +23,8 @@ u64 get_bits(u64 reg, size_t start, size_t end)
 
 typedef void (*describe_fn)(struct field *);
 
-void create_field_info(u64 reg, char *name, char *long_name, size_t start,
-		       size_t end, describe_fn fn, struct field *field)
+void create_field(u64 reg, char *name, char *long_name, size_t start,
+		  size_t end, describe_fn fn, struct field *field)
 {
 	memset(field, 0, sizeof(struct field));
 	field->name = name;
@@ -295,60 +295,57 @@ void decode_iss_data_abort(struct field *iss)
 	struct field set;
 	struct field res1;
 
-	create_field_info(iss->value, "ISV", "Instruction Syndrome Valid", 24,
-			  24, NULL, &isv);
+	create_field(iss->value, "ISV", "Instruction Syndrome Valid", 24, 24,
+		     NULL, &isv);
 	field_add_subfield(iss, &isv);
 
 	if (isv.value == 1) {
-		create_field_info(iss->value, "SAS", "Syndrome Access Size", 22,
-				  23, describe_sas, &sas);
+		create_field(iss->value, "SAS", "Syndrome Access Size", 22, 23,
+			     describe_sas, &sas);
 		field_add_subfield(iss, &sas);
 
-		create_field_info(iss->value, "SSE", "Syndrome Sign Extend", 21,
-				  21, NULL, &sse);
+		create_field(iss->value, "SSE", "Syndrome Sign Extend", 21, 21,
+			     NULL, &sse);
 		field_add_subfield(iss, &sse);
 
-		create_field_info(iss->value, "SRT",
-				  "Syndrome Register Transfer", 16, 20, NULL,
-				  &srt);
+		create_field(iss->value, "SRT", "Syndrome Register Transfer",
+			     16, 20, NULL, &srt);
 		field_add_subfield(iss, &srt);
 
-		create_field_info(iss->value, "SF", "Sixty-Four", 15, 15, NULL,
-				  &sf);
+		create_field(iss->value, "SF", "Sixty-Four", 15, 15, NULL, &sf);
 		field_add_subfield(iss, &sf);
 
-		create_field_info(iss->value, "AR", "Acquire/Release", 14, 14,
-				  describe_ar, &ar);
+		create_field(iss->value, "AR", "Acquire/Release", 14, 14,
+			     describe_ar, &ar);
 		field_add_subfield(iss, &ar);
 	} else {
-		create_field_info(iss->value, "RES0", "Reserved", 14, 23, NULL,
-				  &res0);
+		create_field(iss->value, "RES0", "Reserved", 14, 23, NULL,
+			     &res0);
 		field_add_subfield(iss, &res0);
 	}
 
-	create_field_info(iss->value, "VNCR", "", 13, 13, NULL, &vncr);
+	create_field(iss->value, "VNCR", "", 13, 13, NULL, &vncr);
 	field_add_subfield(iss, &vncr);
 
-	create_field_info(iss->value, "FnV", "FAR not Valid", 10, 10,
-			  describe_fnv, &fnv);
-	create_field_info(iss->value, "EA", "External Abort type", 13, 13, NULL,
-			  &ea);
-	create_field_info(iss->value, "CM", "Cache Maintenance", 8, 8, NULL,
-			  &cm);
-	create_field_info(iss->value, "S1PTW", "Stage-1 translation table walk",
-			  7, 7, NULL, &s1ptw);
-	create_field_info(iss->value, "WnR", "Write not Read", 6, 6,
-			  describe_wnr, &wnr);
-	create_field_info(iss->value, "DFSC", "Data Faule Status Code", 0, 5,
-			  describe_dfsc, &dfsc);
+	create_field(iss->value, "FnV", "FAR not Valid", 10, 10, describe_fnv,
+		     &fnv);
+	create_field(iss->value, "EA", "External Abort type", 13, 13, NULL,
+		     &ea);
+	create_field(iss->value, "CM", "Cache Maintenance", 8, 8, NULL, &cm);
+	create_field(iss->value, "S1PTW", "Stage-1 translation table walk", 7,
+		     7, NULL, &s1ptw);
+	create_field(iss->value, "WnR", "Write not Read", 6, 6, describe_wnr,
+		     &wnr);
+	create_field(iss->value, "DFSC", "Data Faule Status Code", 0, 5,
+		     describe_dfsc, &dfsc);
 
 	if (dfsc.value == 0b010000) {
-		create_field_info(iss->value, "SET", "Synchronous Error Type",
-				  11, 12, describe_set, &set);
+		create_field(iss->value, "SET", "Synchronous Error Type", 11,
+			     12, describe_set, &set);
 		field_add_subfield(iss, &set);
 	} else {
-		create_field_info(iss->value, "RES1", "Reserved", 11, 12, NULL,
-				  &res1);
+		create_field(iss->value, "RES1", "Reserved", 11, 12, NULL,
+			     &res1);
 		field_add_subfield(iss, &res1);
 	}
 	field_add_subfield(iss, &fnv);
@@ -363,6 +360,7 @@ void decode_iss_data_abort(struct field *iss)
 
 void decode_iss_res0(struct field *iss)
 {
+	struct field res0;
 }
 
 void decode_ec(struct field *ec, struct field *iss)
@@ -389,15 +387,14 @@ void decode(u64 esr)
 	struct field il;
 	struct field iss;
 
-	create_field_info(esr, "RES0", "Instruction Specific Syndrome", 37, 63,
-			  NULL, &res0);
-	create_field_info(esr, "ISS2", "Instruction Specific Syndrome 2", 32,
-			  36, NULL, &iss2);
-	create_field_info(esr, "EC", "Exception Class", 26, 31, NULL, &ec);
-	create_field_info(esr, "IL", "Instruction Length", 25, 25, describe_il,
-			  &il);
-	create_field_info(esr, "ISS", "Instruction Specific Syndrome", 0, 24,
-			  NULL, &iss);
+	create_field(esr, "RES0", "Instruction Specific Syndrome", 37, 63, NULL,
+		     &res0);
+	create_field(esr, "ISS2", "Instruction Specific Syndrome 2", 32, 36,
+		     NULL, &iss2);
+	create_field(esr, "EC", "Exception Class", 26, 31, NULL, &ec);
+	create_field(esr, "IL", "Instruction Length", 25, 25, describe_il, &il);
+	create_field(esr, "ISS", "Instruction Specific Syndrome", 0, 24, NULL,
+		     &iss);
 	print_field_info(&res0);
 	print_field_info(&iss2);
 	print_field_info(&ec);
