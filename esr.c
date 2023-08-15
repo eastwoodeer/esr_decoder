@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 typedef unsigned long u64;
@@ -10,10 +11,12 @@ struct field {
 	size_t width;
 	u64 value;
 	char *desc;
-	size_t subfields_length;
 	char *indent;
-	struct field *subfields[32];
+	struct field *next;
+	struct field *prev;
 };
+
+static struct field il;
 
 u64 get_bits(u64 reg, size_t start, size_t end)
 {
@@ -24,7 +27,7 @@ u64 get_bits(u64 reg, size_t start, size_t end)
 typedef void (*describe_fn)(struct field *);
 
 void create_field(u64 reg, char *name, char *long_name, size_t start,
-		  size_t end, describe_fn fn, struct field *field)
+		  size_t end, describe_fn desc, struct field *field)
 {
 	memset(field, 0, sizeof(struct field));
 	field->name = name;
@@ -34,19 +37,23 @@ void create_field(u64 reg, char *name, char *long_name, size_t start,
 	field->value = get_bits(reg, start, end);
 	field->desc = NULL;
 	field->indent = "";
-	field->subfields_length = 0;
+	field->next = field;
+	field->prev = field;
 
-	if (fn != NULL) {
-		fn(field);
+	if (desc != NULL) {
+		desc(field);
 	}
 }
 
-void field_add_subfield(struct field *field, struct field *subfield)
+void field_append(struct field *head, struct field *new)
 {
-	field->subfields[field->subfields_length++] = subfield;
+	new->prev = head->prev;
+	new->next = head;
+	head->prev->next = new;
+	head->prev = new;
 }
 
-void print_field_info(struct field *field)
+void field_description(struct field *field)
 {
 	if (field->width == 1) {
 		printf("%s%02ld\t", field->indent, field->start);
@@ -62,13 +69,22 @@ void print_field_info(struct field *field)
 		printf("\t# %s", field->desc);
 	}
 	printf("\n");
+}
 
-	if (field->subfields_length != 0) {
-		for (int i = 0; i < field->subfields_length; i++) {
-			field->subfields[i]->indent = "\t";
-			print_field_info(field->subfields[i]);
-		}
+void print_field(struct field *head)
+{
+	field_description(head);
+	for (struct field *p = head->next; p != head; p = p->next) {
+		p->indent = "\t";
+		field_description(p);
 	}
+}
+
+void print_field_with_desc(struct field *field, char *desc)
+{
+	print_field(&il);
+	field->desc = desc;
+	print_field(field);
 }
 
 void describe_il(struct field *field)
@@ -276,6 +292,51 @@ void describe_set(struct field *set)
 	}
 }
 
+void check_res0(struct field *res0)
+{
+	if (res0->value != 0) {
+		res0->desc = "[ERROR]: Invalid RES0";
+	} else {
+		res0->desc = "Reserved";
+	}
+}
+
+void decribe_cv(struct field *cv)
+{
+	if (cv->value == 1) {
+		cv->desc = "COND is valid";
+	} else {
+		cv->desc = "COND is not valid";
+	}
+}
+
+void describe_rv(struct field *rv)
+{
+	if (rv->value == 1) {
+		rv->desc = "Register number is valid";
+	} else {
+		rv->desc = "Register number is not valid";
+	}
+}
+
+void describe_ti(struct field *ti)
+{
+	switch (ti->value) {
+	case 0b00:
+		ti->desc = "WFI trapped";
+		break;
+	case 0b01:
+		ti->desc = "WFE trapped";
+		break;
+	case 0b10:
+		ti->desc = "WFIT trapped";
+		break;
+	case 0b11:
+		ti->desc = "WFET trapped";
+		break;
+	}
+}
+
 void decode_iss_data_abort(struct field *iss)
 {
 	struct field isv;
@@ -297,40 +358,39 @@ void decode_iss_data_abort(struct field *iss)
 
 	create_field(iss->value, "ISV", "Instruction Syndrome Valid", 24, 24,
 		     NULL, &isv);
-	field_add_subfield(iss, &isv);
+	field_append(iss, &isv);
 
 	if (isv.value == 1) {
 		create_field(iss->value, "SAS", "Syndrome Access Size", 22, 23,
 			     describe_sas, &sas);
-		field_add_subfield(iss, &sas);
+		field_append(iss, &sas);
 
 		create_field(iss->value, "SSE", "Syndrome Sign Extend", 21, 21,
 			     NULL, &sse);
-		field_add_subfield(iss, &sse);
+		field_append(iss, &sse);
 
 		create_field(iss->value, "SRT", "Syndrome Register Transfer",
 			     16, 20, NULL, &srt);
-		field_add_subfield(iss, &srt);
+		field_append(iss, &srt);
 
 		create_field(iss->value, "SF", "Sixty-Four", 15, 15, NULL, &sf);
-		field_add_subfield(iss, &sf);
+		field_append(iss, &sf);
 
 		create_field(iss->value, "AR", "Acquire/Release", 14, 14,
 			     describe_ar, &ar);
-		field_add_subfield(iss, &ar);
+		field_append(iss, &ar);
 	} else {
-		create_field(iss->value, "RES0", "Reserved", 14, 23, NULL,
+		create_field(iss->value, "RES0", "Reserved", 14, 23, check_res0,
 			     &res0);
-		field_add_subfield(iss, &res0);
+		field_append(iss, &res0);
 	}
 
 	create_field(iss->value, "VNCR", "", 13, 13, NULL, &vncr);
-	field_add_subfield(iss, &vncr);
+	field_append(iss, &vncr);
 
 	create_field(iss->value, "FnV", "FAR not Valid", 10, 10, describe_fnv,
 		     &fnv);
-	create_field(iss->value, "EA", "External Abort type", 13, 13, NULL,
-		     &ea);
+	create_field(iss->value, "EA", "External Abort type", 9, 9, NULL, &ea);
 	create_field(iss->value, "CM", "Cache Maintenance", 8, 8, NULL, &cm);
 	create_field(iss->value, "S1PTW", "Stage-1 translation table walk", 7,
 		     7, NULL, &s1ptw);
@@ -342,38 +402,80 @@ void decode_iss_data_abort(struct field *iss)
 	if (dfsc.value == 0b010000) {
 		create_field(iss->value, "SET", "Synchronous Error Type", 11,
 			     12, describe_set, &set);
-		field_add_subfield(iss, &set);
+		field_append(iss, &set);
 	} else {
 		create_field(iss->value, "RES1", "Reserved", 11, 12, NULL,
 			     &res1);
-		field_add_subfield(iss, &res1);
+		field_append(iss, &res1);
 	}
-	field_add_subfield(iss, &fnv);
-	field_add_subfield(iss, &ea);
-	field_add_subfield(iss, &cm);
-	field_add_subfield(iss, &s1ptw);
-	field_add_subfield(iss, &wnr);
-	field_add_subfield(iss, &dfsc);
+	field_append(iss, &fnv);
+	field_append(iss, &ea);
+	field_append(iss, &cm);
+	field_append(iss, &s1ptw);
+	field_append(iss, &wnr);
+	field_append(iss, &dfsc);
 
-	print_field_info(iss);
+	print_field(iss);
 }
 
 void decode_iss_res0(struct field *iss)
 {
 	struct field res0;
+	create_field(iss->value, "RES0", "Reserved", 0, 24, check_res0, &res0);
+	field_append(iss, &res0);
+	print_field(iss);
+}
+
+void decode_iss_wf(struct field *iss)
+{
+	struct field cv;
+	struct field cond;
+	struct field res0a;
+	struct field rn;
+	struct field res0b;
+	struct field rv;
+	struct field ti;
+
+	create_field(iss->value, "CV", "Condition code valid", 24, 24,
+		     decribe_cv, &cv);
+	create_field(iss->value, "COND",
+		     "Condition code of the trapped instruction", 20, 23, NULL,
+		     &cond);
+	create_field(iss->value, "RES0", "Reserved", 10, 19, check_res0,
+		     &res0a);
+	create_field(iss->value, "RN", "Register Number", 5, 9, NULL, &rn);
+	create_field(iss->value, "RES0", "Reserved", 3, 4, check_res0, &res0b);
+	create_field(iss->value, "RV", "Register valid", 2, 2, describe_rv,
+		     &rv);
+	create_field(iss->value, "TI", "Trapped Instruction", 0, 1, describe_ti,
+		     &ti);
+
+	field_append(iss, &cv);
+	field_append(iss, &cond);
+	field_append(iss, &res0a);
+	field_append(iss, &rn);
+	field_append(iss, &res0b);
+	field_append(iss, &rv);
+	field_append(iss, &ti);
+
+	print_field(iss);
 }
 
 void decode_ec(struct field *ec, struct field *iss)
 {
-	print_field_info(ec);
 	switch (ec->value) {
 	case 0b000000:
-		ec->desc = "Unknown reason";
+		print_field_with_desc(ec, "Unknown reason");
 		decode_iss_res0(iss);
 		break;
+	case 0b000001:
+		print_field_with_desc(ec, "Wrapped WF* instruction execution");
+		decode_iss_wf(iss);
+		break;
 	case 0b100101:
-		ec->desc =
-			"Data Abort taken without a change in Exception level";
+		print_field_with_desc(
+			ec,
+			"Data Abort taken without a change in Exception level");
 		decode_iss_data_abort(iss);
 		break;
 	}
@@ -384,7 +486,6 @@ void decode(u64 esr)
 	struct field res0;
 	struct field iss2;
 	struct field ec;
-	struct field il;
 	struct field iss;
 
 	create_field(esr, "RES0", "Instruction Specific Syndrome", 37, 63, NULL,
@@ -395,16 +496,27 @@ void decode(u64 esr)
 	create_field(esr, "IL", "Instruction Length", 25, 25, describe_il, &il);
 	create_field(esr, "ISS", "Instruction Specific Syndrome", 0, 24, NULL,
 		     &iss);
-	print_field_info(&res0);
-	print_field_info(&iss2);
-	print_field_info(&ec);
-	print_field_info(&il);
+	print_field(&res0);
+	print_field(&iss2);
+	/* print_field(&ec); */
 
 	decode_ec(&ec, &iss);
 }
 
 int main(int argc, char *argv[])
 {
-	decode(0x96000050);
+	if (argc < 2) {
+		printf("bad input\n");
+		exit(1);
+	}
+
+	for (int i = 1; i < argc; i++) {
+		printf("ESR: %s\n", argv[i]);
+		u64 reg;
+		sscanf(argv[i], "%lx", &reg);
+		decode(reg);
+		printf("\n");
+	}
+
 	return 0;
 }
