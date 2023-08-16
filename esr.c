@@ -4,6 +4,7 @@
 
 typedef unsigned long u64;
 
+static u64 _esr;
 struct bitfield {
 	char *name;
 	char *long_name;
@@ -77,6 +78,14 @@ void bitfield_print(struct bitfield *head)
 		p->indent = "\t";
 		field_description(p);
 	}
+}
+
+void bitfield_describe(char *name, char *long_name, size_t start, size_t end,
+		       describe_fn desc)
+{
+	struct bitfield field;
+	bitfield_new(_esr, name, long_name, start, end, desc, &field);
+	bitfield_print(&field);
 }
 
 void describe_il(struct bitfield *field)
@@ -643,75 +652,79 @@ void decode_iss_default(struct bitfield *iss)
 	bitfield_print(iss);
 }
 
-void decode_ec(struct bitfield *ec, struct bitfield *il, struct bitfield *iss)
+decode_iss_fn decode_ec()
 {
+	struct bitfield ec;
+
+	bitfield_new(_esr, "EC", "Exception Class", 26, 31, NULL, &ec);
+
 	decode_iss_fn iss_decoder;
 
-	switch (ec->value) {
+	switch (ec.value) {
 	case 0b000000:
-		ec->desc = "Unknown reason";
+		ec.desc = "Unknown reason";
 		iss_decoder = decode_iss_res0;
 		break;
 	case 0b000001:
-		ec->desc = "Wrapped WF* instruction execution";
+		ec.desc = "Wrapped WF* instruction execution";
 		iss_decoder = decode_iss_wf;
 		break;
 	case 0b000011:
-		ec->desc = "Trapped MCR or MRC access with coproc = 0b1111";
+		ec.desc = "Trapped MCR or MRC access with coproc = 0b1111";
 		iss_decoder = decode_iss_mcr;
 		break;
 	case 0b000100:
-		ec->desc = "Trapped MCRR or MRRC access with coproc = 0b1111";
+		ec.desc = "Trapped MCRR or MRRC access with coproc = 0b1111";
 		iss_decoder = decode_iss_mcrr;
 		break;
 	case 0b000101:
-		ec->desc = "Trapped MCR or MRC access with coproc = 0b1110";
+		ec.desc = "Trapped MCR or MRC access with coproc = 0b1110";
 		iss_decoder = decode_iss_mcr;
 		break;
 	case 0b000110:
-		ec->desc = "Trapped LDC or STC access";
+		ec.desc = "Trapped LDC or STC access";
 		iss_decoder = decode_iss_ldc;
 		break;
 	case 0b00111:
-		ec->desc =
+		ec.desc =
 			"Trapped access to SVE, Advanced SIMD or floating point";
 		iss_decoder = decode_iss_sve;
 		break;
 	case 0b100101:
-		ec->desc =
+		ec.desc =
 			"Data Abort taken without a change in Exception level";
 		iss_decoder = decode_iss_data_abort;
 		break;
 	default:
-		ec->desc = "[ERROR]: bad ec";
+		ec.desc = "[ERROR]: bad ec";
 		iss_decoder = decode_iss_default;
 		break;
 	}
 
-	bitfield_print(ec);
-	bitfield_print(il);
-	iss_decoder(iss);
+	bitfield_print(&ec);
+
+	return iss_decoder;
 }
 
 void decode(u64 esr)
 {
 	struct bitfield res0;
 	struct bitfield iss2;
-	struct bitfield ec;
-	struct bitfield il;
 	struct bitfield iss;
 
-	bitfield_new(esr, "RES0", "Reserved", 37, 63, check_res0, &res0);
-	bitfield_new(esr, "ISS2", "Instruction Specific Syndrome 2", 32, 36,
-		     NULL, &iss2);
-	bitfield_new(esr, "EC", "Exception Class", 26, 31, NULL, &ec);
-	bitfield_new(esr, "IL", "Instruction Length", 25, 25, describe_il, &il);
+	_esr = esr;
+
+	bitfield_describe("RES0", "Reserved", 37, 63, check_res0);
+	bitfield_describe("ISS2", "Instruction Specific Syndrome 2", 32, 36,
+			  NULL);
+
+	decode_iss_fn iss_decoder = decode_ec();
+
+	bitfield_describe("IL", "Instruction Length", 25, 25, describe_il);
+
 	bitfield_new(esr, "ISS", "Instruction Specific Syndrome", 0, 24, NULL,
 		     &iss);
-	bitfield_print(&res0);
-	bitfield_print(&iss2);
-
-	decode_ec(&ec, &il, &iss);
+	iss_decoder(&iss);
 }
 
 int main(int argc, char *argv[])
