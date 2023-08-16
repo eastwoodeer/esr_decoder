@@ -347,6 +347,33 @@ void describe_direction(struct bitfield *direction)
 	}
 }
 
+void describe_am(struct bitfield *am)
+{
+	switch (am->value) {
+	case 0b000:
+		am->desc = "Immediate unindexed";
+		break;
+	case 0b001:
+		am->desc = "Immediate post-indexed";
+		break;
+	case 0b010:
+		am->desc = "Immediate offset";
+		break;
+	case 0b011:
+		am->desc = "Immediate pre-indexed";
+		break;
+	case 0b100:
+		am->desc = "Reserved for trapped STR or T32 LDC";
+		break;
+	case 0b110:
+		am->desc = "Reserved for trapped STC";
+		break;
+	default:
+		am->desc = "[ERROR]: bad am";
+		break;
+	}
+}
+
 void decode_iss_data_abort(struct bitfield *iss)
 {
 	struct bitfield isv;
@@ -545,6 +572,71 @@ void decode_iss_mcrr(struct bitfield *iss)
 	bitfield_print(iss);
 }
 
+void decode_iss_ldc(struct bitfield *iss)
+{
+	struct bitfield cv;
+	struct bitfield cond;
+	struct bitfield imm8;
+	struct bitfield res0;
+	struct bitfield rn;
+	struct bitfield offset;
+	struct bitfield am;
+	struct bitfield direction;
+
+	bitfield_new(iss->value, "CV", "Condition code valid", 24, 24,
+		     describe_cv, &cv);
+	bitfield_new(iss->value, "COND",
+		     "Condition code of the trapped instruction", 20, 23, NULL,
+		     &cond);
+	bitfield_new(iss->value, "imm8",
+		     "Immediate value of the trapped instruction", 12, 19, NULL,
+		     &imm8);
+	bitfield_new(iss->value, "RES0", "Reserved", 10, 11, check_res0, &res0);
+	bitfield_new(
+		iss->value, "Rn",
+		"General-purpose register number of the trapped instruction", 5,
+		9, NULL, &rn);
+	bitfield_new(iss->value, "Offset",
+		     "Whether the offset is added or substracted", 4, 4, NULL,
+		     &offset);
+	bitfield_new(iss->value, "AM", "Addressing Mode", 1, 3, describe_am,
+		     &am);
+	bitfield_new(iss->value, "Direction",
+		     "Direction of the trapped instruction", 0, 0,
+		     describe_direction, &direction);
+
+	field_append(iss, &cv);
+	field_append(iss, &cond);
+	field_append(iss, &imm8);
+	field_append(iss, &res0);
+	field_append(iss, &rn);
+	field_append(iss, &offset);
+	field_append(iss, &am);
+	field_append(iss, &direction);
+
+	bitfield_print(iss);
+}
+
+void decode_iss_sve(struct bitfield *iss)
+{
+	struct bitfield cv;
+	struct bitfield cond;
+	struct bitfield res0;
+
+	bitfield_new(iss->value, "CV", "Condition code valid", 24, 24,
+		     describe_cv, &cv);
+	bitfield_new(iss->value, "COND",
+		     "Condition code of the trapped instruction", 20, 23, NULL,
+		     &cond);
+	bitfield_new(iss->value, "RES0", "Reserved", 0, 19, check_res0, &res0);
+
+	field_append(iss, &cv);
+	field_append(iss, &cond);
+	field_append(iss, &res0);
+
+	bitfield_print(iss);
+}
+
 void decode_iss_default(struct bitfield *iss)
 {
 	iss->desc = "[ERROR]: bad iss";
@@ -575,6 +667,15 @@ void decode_ec(struct bitfield *ec, struct bitfield *il, struct bitfield *iss)
 	case 0b000101:
 		ec->desc = "Trapped MCR or MRC access with coproc = 0b1110";
 		iss_decoder = decode_iss_mcr;
+		break;
+	case 0b000110:
+		ec->desc = "Trapped LDC or STC access";
+		iss_decoder = decode_iss_ldc;
+		break;
+	case 0b00111:
+		ec->desc =
+			"Trapped access to SVE, Advanced SIMD or floating point";
+		iss_decoder = decode_iss_sve;
 		break;
 	case 0b100101:
 		ec->desc =
