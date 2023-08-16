@@ -53,8 +53,37 @@ void field_append(struct bitfield *head, struct bitfield *new)
 	head->prev = new;
 }
 
+void decimal_to_binary(u64 n, char *buf)
+{
+	size_t len = sizeof(u64) * 8 - 1;
+	int ignore = 1;
+	int i = len;
+	int j = 0;
+
+	if (n == 0) {
+		for (; j < 8; j++) {
+			buf[j] = '0';
+		}
+		buf[j] = '\0';
+		return;
+	}
+
+	for (; i >= 0; i--) {
+		int k = (n >> i);
+		if (ignore && (!k)) {
+			continue;
+		}
+
+		ignore = 0;
+		buf[j++] = (k & 1) ? '1' : '0';
+	}
+	buf[j] = '\0';
+}
+
 void field_description(struct bitfield *field)
 {
+	char binary[128];
+
 	if (field->width == 1) {
 		printf("%s%02ld\t", field->indent, field->start);
 		printf("%s%s:\t%s", field->indent, field->name,
@@ -62,8 +91,9 @@ void field_description(struct bitfield *field)
 	} else {
 		printf("%s%02ld...%02ld\t", field->indent, field->start,
 		       field->start + field->width - 1);
-		printf("%s%s:\t0x%02lx 0b%08lb", field->indent, field->name,
-		       field->value, field->value);
+		decimal_to_binary(field->value, binary);
+		printf("%s%s:\t0x%02lx 0b%s", field->indent, field->name,
+		       field->value, binary);
 	}
 	if (field->desc) {
 		printf("\t# %s", field->desc);
