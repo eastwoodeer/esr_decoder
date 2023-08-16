@@ -508,6 +508,49 @@ void decode_iss_mcr(struct bitfield *iss)
 	bitfield_print(iss);
 }
 
+void decode_iss_mcrr(struct bitfield *iss)
+{
+	struct bitfield cv;
+	struct bitfield cond;
+	struct bitfield opc1;
+	struct bitfield res0;
+	struct bitfield rt2;
+	struct bitfield rt;
+	struct bitfield crm;
+	struct bitfield direction;
+
+	bitfield_new(iss->value, "CV", "Condition code valid", 24, 24,
+		     describe_cv, &cv);
+	bitfield_new(iss->value, "COND",
+		     "Condition code of the trapped instruction", 20, 23, NULL,
+		     &cond);
+	bitfield_new(iss->value, "Opc1", NULL, 16, 19, NULL, &opc1);
+	bitfield_new(iss->value, "Res0", NULL, 15, 15, check_res0, &res0);
+	bitfield_new(iss->value, "Rt2", NULL, 10, 14, NULL, &rt2);
+	bitfield_new(iss->value, "Rt", NULL, 5, 9, NULL, &rt);
+	bitfield_new(iss->value, "CRm", NULL, 1, 4, NULL, &crm);
+	bitfield_new(iss->value, "Direction",
+		     "Direction of the trapped instruction", 0, 0,
+		     describe_direction, &direction);
+
+	field_append(iss, &cv);
+	field_append(iss, &cond);
+	field_append(iss, &opc1);
+	field_append(iss, &res0);
+	field_append(iss, &rt2);
+	field_append(iss, &rt);
+	field_append(iss, &crm);
+	field_append(iss, &direction);
+
+	bitfield_print(iss);
+}
+
+void decode_iss_default(struct bitfield *iss)
+{
+	iss->desc = "[ERROR]: bad iss";
+	bitfield_print(iss);
+}
+
 void decode_ec(struct bitfield *ec, struct bitfield *il, struct bitfield *iss)
 {
 	decode_iss_fn iss_decoder;
@@ -525,10 +568,22 @@ void decode_ec(struct bitfield *ec, struct bitfield *il, struct bitfield *iss)
 		ec->desc = "Trapped MCR or MRC access with coproc = 0b1111";
 		iss_decoder = decode_iss_mcr;
 		break;
+	case 0b000100:
+		ec->desc = "Trapped MCRR or MRRC access with coproc = 0b1111";
+		iss_decoder = decode_iss_mcrr;
+		break;
+	case 0b000101:
+		ec->desc = "Trapped MCR or MRC access with coproc = 0b1110";
+		iss_decoder = decode_iss_mcr;
+		break;
 	case 0b100101:
 		ec->desc =
 			"Data Abort taken without a change in Exception level";
 		iss_decoder = decode_iss_data_abort;
+		break;
+	default:
+		ec->desc = "[ERROR]: bad ec";
+		iss_decoder = decode_iss_default;
 		break;
 	}
 
