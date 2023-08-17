@@ -437,6 +437,23 @@ void describe_am(struct bitfield *am)
 	}
 }
 
+void describe_iss_ld64b(struct bitfield *iss)
+{
+	switch (iss->value) {
+	case 0b00:
+		iss->desc = "ST64BV trapped";
+		break;
+	case 0b01:
+		iss->desc = "ST64BV0 trapped";
+		break;
+	case 0b10:
+		iss->desc = "LD64B or ST64B trapped";
+		break;
+	default:
+		iss->desc = "[ERROR]: bad iss";
+	}
+}
+
 void decode_iss_data_abort(struct bitfield *iss)
 {
 	struct bitfield dfsc;
@@ -504,8 +521,8 @@ void decode_iss_mcr(struct bitfield *iss)
 	bitfield_describe("Crn", NULL, 10, 13, NULL);
 	bitfield_describe("Rt", NULL, 5, 9, NULL);
 	bitfield_describe("CRm", NULL, 1, 4, NULL);
-	bitfield_describe("Direction", "Direction of the trapped instruction",
-			  0, 0, describe_mcr_direction);
+	bitfield_describe("Dir", "Direction of the trapped instruction", 0, 0,
+			  describe_mcr_direction);
 }
 
 void decode_iss_mcrr(struct bitfield *iss)
@@ -518,8 +535,8 @@ void decode_iss_mcrr(struct bitfield *iss)
 	bitfield_describe("Rt2", NULL, 10, 14, NULL);
 	bitfield_describe("Rt", NULL, 5, 9, NULL);
 	bitfield_describe("CRm", NULL, 1, 4, NULL);
-	bitfield_describe("Direction", "Direction of the trapped instruction",
-			  0, 0, describe_mcr_direction);
+	bitfield_describe("Dir", "Direction of the trapped instruction", 0, 0,
+			  describe_mcr_direction);
 }
 
 void decode_iss_ldc(struct bitfield *iss)
@@ -538,8 +555,8 @@ void decode_iss_ldc(struct bitfield *iss)
 			  "Whether the offset is added or substracted", 4, 4,
 			  describe_offset);
 	bitfield_describe("AM", "Addressing Mode", 1, 3, describe_am);
-	bitfield_describe("Direction", "Direction of the trapped instruction",
-			  0, 0, describe_ldc_direction);
+	bitfield_describe("Dir", "Direction of the trapped instruction", 0, 0,
+			  describe_ldc_direction);
 }
 
 void decode_iss_sve(struct bitfield *iss)
@@ -548,6 +565,17 @@ void decode_iss_sve(struct bitfield *iss)
 	bitfield_describe("COND", "Condition code of the trapped instruction",
 			  20, 23, NULL);
 	bitfield_describe("RES0", "Reserved", 0, 19, check_res0);
+}
+
+void decode_iss_ld64b(struct bitfield *iss)
+{
+	bitfield_describe("ISS", NULL, 0, 24, describe_iss_ld64b);
+}
+
+void decode_iss_bti(struct bitfield *iss)
+{
+	bitfield_describe("RES0", "Reserved", 2, 24, check_res0);
+	bitfield_describe("BTYPE", "PSTATE.BTYPE value", 0, 1, NULL);
 }
 
 void decode_iss_default(struct bitfield *iss)
@@ -559,10 +587,9 @@ void decode_iss_default(struct bitfield *iss)
 decode_iss_fn decode_ec()
 {
 	struct bitfield ec;
+	decode_iss_fn iss_decoder = decode_iss_default;
 
 	bitfield_new(_esr, "EC", "Exception Class", 26, 31, NULL, &ec);
-
-	decode_iss_fn iss_decoder;
 
 	switch (ec.value) {
 	case 0b000000:
@@ -589,10 +616,23 @@ decode_iss_fn decode_ec()
 		ec.desc = "Trapped LDC or STC access";
 		iss_decoder = decode_iss_ldc;
 		break;
-	case 0b00111:
+	case 0b000111:
 		ec.desc =
 			"Trapped access to SVE, Advanced SIMD or floating point";
 		iss_decoder = decode_iss_sve;
+		break;
+	case 0b001010:
+		ec.desc =
+			"Trapped execution of an LD64B, ST64B, ST64BV, or ST64BV0 instruction";
+		iss_decoder = decode_iss_ld64b;
+		break;
+	case 0b001100:
+		ec.desc = "Trapped MRRC access with coproc == 0b1110";
+		iss_decoder = decode_iss_mcrr;
+		break;
+	case 0b001101:
+		ec.desc = "Branch Target Exception";
+		iss_decoder = decode_iss_bti;
 		break;
 	case 0b100101:
 		ec.desc =
@@ -601,7 +641,6 @@ decode_iss_fn decode_ec()
 		break;
 	default:
 		ec.desc = "[ERROR]: bad ec";
-		iss_decoder = decode_iss_default;
 		break;
 	}
 
