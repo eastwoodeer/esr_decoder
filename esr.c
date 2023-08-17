@@ -573,6 +573,12 @@ void decode_iss_bti(struct bitfield *iss)
 	bitfield_describe("BTYPE", "PSTATE.BTYPE value", 0, 1, NULL);
 }
 
+void decode_iss_hvc(struct bitfield *iss)
+{
+	bitfield_describe("RES0", "Reserved", 16, 24, check_res0);
+	bitfield_describe("imm16", "Value of the immediate field", 0, 15, NULL);
+}
+
 void decode_iss_default(struct bitfield *iss)
 {
 	iss->desc = "[ERROR]: bad iss";
@@ -632,6 +638,22 @@ decode_iss_fn decode_ec()
 	case 0b001110:
 		ec.desc = "Illegal Execution state";
 		iss_decoder = decode_iss_res0;
+		break;
+	case 0b010001:
+		ec.desc = "SVC instruction execution in AArch32 state";
+		iss_decoder = decode_iss_hvc;
+		break;
+	case 0b010101:
+		ec.desc = "SVC instruction execution in AArch64 state";
+		iss_decoder = decode_iss_hvc;
+		break;
+	case 0b010110:
+		ec.desc = "HVC instruction execution in AArch64 state";
+		iss_decoder = decode_iss_hvc;
+		break;
+	case 0b010111:
+		ec.desc = "SMC instruction execution in AArch64 state";
+		iss_decoder = decode_iss_hvc;
 		break;
 	case 0b100101:
 		ec.desc =
