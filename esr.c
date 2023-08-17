@@ -53,14 +53,13 @@ void field_append(struct bitfield *head, struct bitfield *new)
 	head->prev = new;
 }
 
-void decimal_to_binary(u64 n, char *buf)
+void decimal_to_binary(u64 n, size_t width, char *buf)
 {
-	int ignore = 1;
-	int i = sizeof(u64) * 8 - 1;
+	int i = width - 1;
 	int j = 0;
 
 	if (n == 0) {
-		for (; j < 8; j++) {
+		for (; j < width; j++) {
 			buf[j] = '0';
 		}
 		buf[j] = '\0';
@@ -69,10 +68,6 @@ void decimal_to_binary(u64 n, char *buf)
 
 	for (; i >= 0; i--) {
 		int k = (n >> i);
-		if (ignore && (!k)) {
-			continue;
-		}
-		ignore = 0;
 		buf[j++] = (k & 1) ? '1' : '0';
 	}
 	buf[j] = '\0';
@@ -89,7 +84,7 @@ void field_description(struct bitfield *field)
 	} else {
 		printf("%02ld...%02ld\t", field->start,
 		       field->start + field->width - 1);
-		decimal_to_binary(field->value, binary);
+		decimal_to_binary(field->value, field->width, binary);
 		printf("%s:\t0x%02lx 0b%s", field->name, field->value, binary);
 	}
 
@@ -633,6 +628,10 @@ decode_iss_fn decode_ec()
 	case 0b001101:
 		ec.desc = "Branch Target Exception";
 		iss_decoder = decode_iss_bti;
+		break;
+	case 0b001110:
+		ec.desc = "Illegal Execution state";
+		iss_decoder = decode_iss_res0;
 		break;
 	case 0b100101:
 		ec.desc =
