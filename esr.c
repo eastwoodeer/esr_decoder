@@ -405,6 +405,15 @@ void describe_ldc_direction(struct bitfield *direction)
 	}
 }
 
+void describe_msr_direction(struct bitfield *direction)
+{
+	if (direction->value == 1) {
+		direction->desc = "Read from system register (MRS)";
+	} else {
+		direction->desc = "Write to system register (MSR)";
+	}
+}
+
 void describe_am(struct bitfield *am)
 {
 	switch (am->value) {
@@ -579,6 +588,361 @@ void decode_iss_hvc(struct bitfield *iss)
 	bitfield_describe("imm16", "Value of the immediate field", 0, 15, NULL);
 }
 
+#define SYSREG_INDEX(op0, crn, op1, crm, op2) \
+	((op0 << 20) | (crn << 10) | (op1 << 14) | (crm << 1) | (op2 << 17))
+
+char *sysreg_name(u64 op0, u64 op1, u64 op2, u64 crn, u64 crm)
+{
+	switch (SYSREG_INDEX(op0, crn, op1, crm, op2)) {
+	case SYSREG_INDEX(3, 1, 0, 0, 1):
+		return "ACTLR_EL1";
+	case SYSREG_INDEX(3, 1, 4, 0, 1):
+		return "ACTLR_EL2";
+	case SYSREG_INDEX(3, 1, 6, 0, 1):
+		return "ACTLR_EL3";
+	case SYSREG_INDEX(3, 0, 1, 0, 7):
+		return "AIDR_EL1";
+	case SYSREG_INDEX(3, 5, 0, 1, 0):
+		return "AFSR0_EL1";
+	case SYSREG_INDEX(3, 5, 4, 1, 0):
+		return "AFSR0_EL2";
+	case SYSREG_INDEX(3, 5, 6, 1, 0):
+		return "AFSR0_EL3";
+	case SYSREG_INDEX(3, 5, 0, 1, 1):
+		return "AFSR1_EL1";
+	case SYSREG_INDEX(3, 5, 4, 1, 1):
+		return "AFSR1_EL2";
+	case SYSREG_INDEX(3, 5, 6, 1, 1):
+		return "AFSR1_EL3";
+	case SYSREG_INDEX(3, 10, 0, 3, 0):
+		return "AMAIR_EL1";
+	case SYSREG_INDEX(3, 10, 4, 3, 0):
+		return "AMAIR_EL2";
+	case SYSREG_INDEX(3, 10, 6, 3, 0):
+		return "AMAIR_EL3";
+	case SYSREG_INDEX(3, 0, 1, 0, 0):
+		return "CCSIDR_EL1";
+	case SYSREG_INDEX(3, 0, 1, 0, 1):
+		return "CLIDR_EL1";
+	case SYSREG_INDEX(3, 1, 0, 0, 2):
+		return "CPACR_EL1";
+	case SYSREG_INDEX(3, 1, 4, 1, 2):
+		return "CPTR_EL2";
+	case SYSREG_INDEX(3, 1, 6, 1, 2):
+		return "CPTR_EL3";
+	case SYSREG_INDEX(3, 0, 2, 0, 0):
+		return "CSSELR_EL1";
+	case SYSREG_INDEX(3, 0, 3, 0, 1):
+		return "CTR_EL0";
+	case SYSREG_INDEX(3, 12, 0, 1, 1):
+		return "DISR_EL1";
+	case SYSREG_INDEX(3, 5, 0, 3, 0):
+		return "ERRIDR_EL1";
+	case SYSREG_INDEX(3, 5, 0, 3, 1):
+		return "ERRSELR_EL1";
+	case SYSREG_INDEX(3, 5, 0, 4, 3):
+		return "ERXADDR_EL1";
+	case SYSREG_INDEX(3, 5, 0, 4, 1):
+		return "ERXCTLR_EL1";
+	case SYSREG_INDEX(3, 5, 0, 4, 0):
+		return "ERXFR_EL1";
+	case SYSREG_INDEX(3, 5, 0, 5, 0):
+		return "ERXMISC0_EL1";
+	case SYSREG_INDEX(3, 5, 0, 5, 1):
+		return "ERXMISC1_EL1";
+	case SYSREG_INDEX(3, 5, 0, 4, 2):
+		return "ERXSTATUS_EL1";
+	case SYSREG_INDEX(3, 5, 0, 2, 0):
+		return "ESR_EL1";
+	case SYSREG_INDEX(3, 5, 4, 2, 0):
+		return "ESR_EL2";
+	case SYSREG_INDEX(3, 5, 6, 2, 0):
+		return "ESR_EL3";
+	case SYSREG_INDEX(3, 1, 4, 1, 7):
+		return "HACR_EL2";
+	case SYSREG_INDEX(3, 1, 4, 1, 0):
+		return "HCR_EL2";
+	case SYSREG_INDEX(3, 0, 0, 1, 3):
+		return "ID_AFR0_EL1";
+	case SYSREG_INDEX(3, 0, 0, 1, 2):
+		return "ID_DFR0_EL1";
+	case SYSREG_INDEX(3, 0, 0, 2, 0):
+		return "ID_ISAR0_EL1";
+	case SYSREG_INDEX(3, 0, 0, 2, 1):
+		return "ID_ISAR1_EL1";
+	case SYSREG_INDEX(3, 0, 0, 2, 2):
+		return "ID_ISAR2_EL1";
+	case SYSREG_INDEX(3, 0, 0, 2, 3):
+		return "ID_ISAR3_EL1";
+	case SYSREG_INDEX(3, 0, 0, 2, 4):
+		return "ID_ISAR4_EL1";
+	case SYSREG_INDEX(3, 0, 0, 2, 5):
+		return "ID_ISAR5_EL1";
+	case SYSREG_INDEX(3, 0, 0, 2, 7):
+		return "ID_ISAR6_EL1";
+	case SYSREG_INDEX(3, 0, 0, 1, 4):
+		return "ID_MMFR0_EL1";
+	case SYSREG_INDEX(3, 0, 0, 1, 5):
+		return "ID_MMFR1_EL1";
+	case SYSREG_INDEX(3, 0, 0, 1, 6):
+		return "ID_MMFR2_EL1";
+	case SYSREG_INDEX(3, 0, 0, 1, 7):
+		return "ID_MMFR3_EL1";
+	case SYSREG_INDEX(3, 0, 0, 2, 6):
+		return "ID_MMFR4_EL1";
+	case SYSREG_INDEX(3, 0, 0, 1, 0):
+		return "ID_PFR0_EL1";
+	case SYSREG_INDEX(3, 0, 0, 1, 1):
+		return "ID_PFR1_EL1";
+	case SYSREG_INDEX(3, 0, 0, 3, 4):
+		return "ID_PFR2_EL1";
+	case SYSREG_INDEX(3, 0, 0, 5, 0):
+		return "ID_AA64DFR0_EL1";
+	case SYSREG_INDEX(3, 0, 0, 6, 0):
+		return "ID_AA64ISAR0_EL1";
+	case SYSREG_INDEX(3, 0, 0, 6, 1):
+		return "ID_AA64ISAR1_EL1";
+	case SYSREG_INDEX(3, 0, 0, 7, 0):
+		return "ID_AA64MMFR0_EL1";
+	case SYSREG_INDEX(3, 0, 0, 7, 1):
+		return "ID_AA64MMFR1_EL1";
+	case SYSREG_INDEX(3, 0, 0, 7, 2):
+		return "ID_AA64MMFR2_EL1";
+	case SYSREG_INDEX(3, 0, 0, 4, 0):
+		return "ID_AA64PFR0_EL1";
+	case SYSREG_INDEX(3, 5, 4, 0, 1):
+		return "IFSR32_EL2";
+	case SYSREG_INDEX(3, 10, 0, 4, 3):
+		return "LORC_EL1";
+	case SYSREG_INDEX(3, 10, 0, 4, 7):
+		return "LORID_EL1";
+	case SYSREG_INDEX(3, 10, 0, 4, 2):
+		return "LORN_EL1";
+	case SYSREG_INDEX(3, 1, 6, 3, 1):
+		return "MDCR_EL3";
+	case SYSREG_INDEX(3, 0, 0, 0, 0):
+		return "MIDR_EL1";
+	case SYSREG_INDEX(3, 0, 0, 0, 5):
+		return "MPIDR_EL1";
+	case SYSREG_INDEX(3, 7, 0, 4, 0):
+		return "PAR_EL1";
+	case SYSREG_INDEX(3, 12, 6, 0, 1):
+		return "RVBAR_EL3";
+	case SYSREG_INDEX(3, 0, 0, 0, 6):
+		return "REVIDR_EL1";
+	case SYSREG_INDEX(3, 1, 0, 0, 0):
+		return "SCTLR_EL1";
+	case SYSREG_INDEX(3, 1, 6, 0, 0):
+		return "SCTLR_EL3";
+	case SYSREG_INDEX(3, 2, 0, 0, 2):
+		return "TCR_EL1";
+	case SYSREG_INDEX(3, 2, 4, 0, 2):
+		return "TCR_EL2";
+	case SYSREG_INDEX(3, 2, 6, 0, 2):
+		return "TCR_EL3";
+	case SYSREG_INDEX(3, 2, 0, 0, 0):
+		return "TTBR0_EL1";
+	case SYSREG_INDEX(3, 2, 4, 0, 0):
+		return "TTBR0_EL2";
+	case SYSREG_INDEX(3, 2, 6, 0, 0):
+		return "TTBR0_EL3";
+	case SYSREG_INDEX(3, 2, 0, 0, 1):
+		return "TTBR1_EL1";
+	case SYSREG_INDEX(3, 2, 4, 0, 1):
+		return "TTBR1_EL2";
+	case SYSREG_INDEX(3, 12, 4, 1, 1):
+		return "VDISR_EL2";
+	case SYSREG_INDEX(3, 5, 4, 2, 3):
+		return "VSESR_EL2";
+	case SYSREG_INDEX(3, 2, 4, 1, 2):
+		return "VTCR_EL2";
+	case SYSREG_INDEX(3, 2, 4, 1, 0):
+		return "VTTBR_EL2";
+	case SYSREG_INDEX(3, 5, 5, 1, 0):
+		return "AFSR0_EL12";
+	case SYSREG_INDEX(3, 5, 5, 1, 1):
+		return "AFSR1_EL12";
+	case SYSREG_INDEX(3, 10, 5, 3, 0):
+		return "AMAIR_EL12";
+	case SYSREG_INDEX(3, 14, 3, 0, 0):
+		return "CNTFRQ_EL0";
+	case SYSREG_INDEX(3, 14, 4, 1, 0):
+		return "CNTHCTL_EL2";
+	case SYSREG_INDEX(3, 14, 4, 2, 1):
+		return "CNTHP_CTL_EL2";
+	case SYSREG_INDEX(3, 14, 4, 2, 2):
+		return "CNTHP_CVAL_EL2";
+	case SYSREG_INDEX(3, 14, 4, 2, 0):
+		return "CNTHP_TVAL_EL2";
+	case SYSREG_INDEX(3, 14, 4, 3, 1):
+		return "CNTHV_CTL_EL2";
+	case SYSREG_INDEX(3, 14, 4, 3, 2):
+		return "CNTHV_CVAL_EL2";
+	case SYSREG_INDEX(3, 14, 4, 3, 0):
+		return "CNTHV_TVAL_EL2";
+	case SYSREG_INDEX(3, 14, 0, 1, 0):
+		return "CNTKCTL_EL1";
+	case SYSREG_INDEX(3, 14, 5, 1, 0):
+		return "CNTKCTL_EL12";
+	case SYSREG_INDEX(3, 14, 3, 2, 1):
+		return "CNTP_CTL_EL0";
+	case SYSREG_INDEX(3, 14, 5, 2, 1):
+		return "CNTP_CTL_EL02";
+	case SYSREG_INDEX(3, 14, 3, 2, 2):
+		return "CNTP_CVAL_EL0";
+	case SYSREG_INDEX(3, 14, 5, 2, 2):
+		return "CNTP_CVAL_EL02";
+	case SYSREG_INDEX(3, 14, 3, 2, 0):
+		return "CNTP_TVAL_EL0";
+	case SYSREG_INDEX(3, 14, 5, 2, 0):
+		return "CNTP_TVAL_EL02";
+	case SYSREG_INDEX(3, 14, 3, 0, 1):
+		return "CNTPCT_EL0";
+	case SYSREG_INDEX(3, 14, 7, 2, 1):
+		return "CNTPS_CTL_EL1";
+	case SYSREG_INDEX(3, 14, 7, 2, 2):
+		return "CNTPS_CVAL_EL1";
+	case SYSREG_INDEX(3, 14, 7, 2, 0):
+		return "CNTPS_TVAL_EL1";
+	case SYSREG_INDEX(3, 14, 3, 3, 1):
+		return "CNTV_CTL_EL0";
+	case SYSREG_INDEX(3, 14, 5, 3, 1):
+		return "CNTV_CTL_EL02";
+	case SYSREG_INDEX(3, 14, 3, 3, 2):
+		return "CNTV_CVAL_EL0";
+	case SYSREG_INDEX(3, 14, 5, 3, 2):
+		return "CNTV_CVAL_EL02";
+	case SYSREG_INDEX(3, 14, 3, 3, 0):
+		return "CNTV_TVAL_EL0";
+	case SYSREG_INDEX(3, 14, 5, 3, 0):
+		return "CNTV_TVAL_EL02";
+	case SYSREG_INDEX(3, 14, 3, 0, 2):
+		return "CNTVCT_EL0";
+	case SYSREG_INDEX(3, 14, 4, 0, 3):
+		return "CNTVOFF_EL2";
+	case SYSREG_INDEX(3, 13, 0, 0, 1):
+		return "CONTEXTIDR_EL1";
+	case SYSREG_INDEX(3, 13, 5, 0, 1):
+		return "CONTEXTIDR_EL12";
+	case SYSREG_INDEX(3, 13, 4, 0, 1):
+		return "CONTEXTIDR_EL2";
+	case SYSREG_INDEX(3, 1, 5, 0, 2):
+		return "CPACR_EL12";
+	case SYSREG_INDEX(3, 3, 4, 0, 0):
+		return "DACR32_EL2";
+	case SYSREG_INDEX(3, 5, 5, 2, 0):
+		return "ESR_EL12";
+	case SYSREG_INDEX(3, 6, 0, 0, 0):
+		return "FAR_EL1";
+	case SYSREG_INDEX(3, 6, 5, 0, 0):
+		return "FAR_EL12";
+	case SYSREG_INDEX(3, 6, 4, 0, 0):
+		return "FAR_EL2";
+	case SYSREG_INDEX(3, 6, 6, 0, 0):
+		return "FAR_EL3";
+	case SYSREG_INDEX(3, 5, 4, 3, 0):
+		return "FPEXC32_EL2";
+	case SYSREG_INDEX(3, 6, 4, 0, 4):
+		return "HPFAR_EL2";
+	case SYSREG_INDEX(3, 1, 4, 1, 3):
+		return "HSTR_EL2";
+	case SYSREG_INDEX(3, 0, 0, 5, 4):
+		return "ID_AA64AFR0_EL1";
+	case SYSREG_INDEX(3, 0, 0, 5, 5):
+		return "ID_AA64AFR1_EL1";
+	case SYSREG_INDEX(3, 0, 0, 5, 1):
+		return "ID_AA64DFR1_EL1";
+	case SYSREG_INDEX(3, 0, 0, 4, 1):
+		return "ID_AA64PFR1_EL1";
+	case SYSREG_INDEX(3, 12, 0, 1, 0):
+		return "ISR_EL1";
+	case SYSREG_INDEX(3, 10, 0, 4, 1):
+		return "LOREA_EL1";
+	case SYSREG_INDEX(3, 10, 0, 4, 0):
+		return "LORSA_EL1";
+	case SYSREG_INDEX(3, 10, 0, 2, 0):
+		return "MAIR_EL1";
+	case SYSREG_INDEX(3, 10, 5, 2, 0):
+		return "MAIR_EL12";
+	case SYSREG_INDEX(3, 10, 4, 2, 0):
+		return "MAIR_EL2";
+	case SYSREG_INDEX(3, 10, 6, 2, 0):
+		return "MAIR_EL3";
+	case SYSREG_INDEX(3, 1, 4, 1, 1):
+		return "MDCR_EL2";
+	case SYSREG_INDEX(3, 0, 0, 3, 0):
+		return "MVFR0_EL1";
+	case SYSREG_INDEX(3, 0, 0, 3, 1):
+		return "MVFR1_EL1";
+	case SYSREG_INDEX(3, 0, 0, 3, 2):
+		return "MVFR2_EL1";
+	case SYSREG_INDEX(3, 12, 6, 0, 2):
+		return "RMR_EL3";
+	case SYSREG_INDEX(3, 1, 6, 1, 0):
+		return "SCR_EL3";
+	case SYSREG_INDEX(3, 1, 5, 0, 0):
+		return "SCTLR_EL12";
+	case SYSREG_INDEX(3, 1, 4, 0, 0):
+		return "SCTLR_EL2";
+	case SYSREG_INDEX(3, 1, 6, 1, 1):
+		return "SDER32_EL3";
+	case SYSREG_INDEX(3, 2, 5, 0, 2):
+		return "TCR_EL12";
+	case SYSREG_INDEX(3, 13, 3, 0, 2):
+		return "TPIDR_EL0";
+	case SYSREG_INDEX(3, 13, 0, 0, 4):
+		return "TPIDR_EL1";
+	case SYSREG_INDEX(3, 13, 4, 0, 2):
+		return "TPIDR_EL2";
+	case SYSREG_INDEX(3, 13, 6, 0, 2):
+		return "TPIDR_EL3";
+	case SYSREG_INDEX(3, 13, 3, 0, 3):
+		return "TPIDRRO_EL0";
+	case SYSREG_INDEX(3, 2, 5, 0, 0):
+		return "TTBR0_EL12";
+	case SYSREG_INDEX(3, 2, 5, 0, 1):
+		return "TTBR1_EL12";
+	case SYSREG_INDEX(3, 12, 0, 0, 0):
+		return "VBAR_EL1";
+	case SYSREG_INDEX(3, 12, 5, 0, 0):
+		return "VBAR_EL12";
+	case SYSREG_INDEX(3, 12, 4, 0, 0):
+		return "VBAR_EL2";
+	case SYSREG_INDEX(3, 12, 6, 0, 0):
+		return "VBAR_EL3";
+	case SYSREG_INDEX(3, 0, 4, 0, 5):
+		return "VMPIDR_EL2";
+	case SYSREG_INDEX(3, 0, 4, 0, 0):
+		return "VPIDR_EL2";
+	default:
+		return "unknown";
+	}
+}
+
+void decode_iss_msr(struct bitfield *iss)
+{
+	bitfield_describe("RES0", "Reserved", 22, 24, check_res0);
+	u64 op0 = bitfield_describe("Op0", NULL, 20, 21, NULL);
+	u64 op2 = bitfield_describe("Op2", NULL, 17, 19, NULL);
+	u64 op1 = bitfield_describe("Op1", NULL, 14, 16, NULL);
+	u64 crn = bitfield_describe("CRn", NULL, 10, 13, NULL);
+	u64 rt = bitfield_describe(
+		"Rt",
+		"General-purpose register number of the trapped instruction", 5,
+		9, NULL);
+	u64 crm = bitfield_describe("CRm", NULL, 1, 4, NULL);
+	u64 dir = bitfield_describe("Dir",
+				    "Direction of the trapped instruction", 0,
+				    0, describe_msr_direction);
+	if (dir) {
+		printf("# MRS x%lu, %s\n", rt,
+		       sysreg_name(op0, op1, op2, crn, crm));
+	} else {
+		printf("# MSR %s, x%lu\n", sysreg_name(op0, op1, op2, crn, crm),
+		       rt);
+	}
+}
+
 void decode_iss_default(struct bitfield *iss)
 {
 	iss->desc = "[ERROR]: bad iss";
@@ -654,6 +1018,11 @@ decode_iss_fn decode_ec()
 	case 0b010111:
 		ec.desc = "SMC instruction execution in AArch64 state";
 		iss_decoder = decode_iss_hvc;
+		break;
+	case 0b011000:
+		ec.desc =
+			"Trapped MSR, MRS or System instruction execution in AArch64 state";
+		iss_decoder = decode_iss_msr;
 		break;
 	case 0b100101:
 		ec.desc =
