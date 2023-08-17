@@ -55,9 +55,8 @@ void field_append(struct bitfield *head, struct bitfield *new)
 
 void decimal_to_binary(u64 n, char *buf)
 {
-	size_t len = sizeof(u64) * 8 - 1;
 	int ignore = 1;
-	int i = len;
+	int i = sizeof(u64) * 8 - 1;
 	int j = 0;
 
 	if (n == 0) {
@@ -73,7 +72,6 @@ void decimal_to_binary(u64 n, char *buf)
 		if (ignore && (!k)) {
 			continue;
 		}
-
 		ignore = 0;
 		buf[j++] = (k & 1) ? '1' : '0';
 	}
@@ -85,16 +83,20 @@ void field_description(struct bitfield *field)
 	char binary[128];
 
 	if (field->width == 1) {
-		printf("%s%02ld\t", field->indent, field->start);
-		printf("%s%s:\t%s", field->indent, field->name,
+		printf("%02ld\t", field->start);
+		printf("%s:\t%s", field->name,
 		       field->value == 1 ? "true" : "false");
 	} else {
-		printf("%s%02ld...%02ld\t", field->indent, field->start,
+		printf("%02ld...%02ld\t", field->start,
 		       field->start + field->width - 1);
 		decimal_to_binary(field->value, binary);
-		printf("%s%s:\t0x%02lx 0b%s", field->indent, field->name,
-		       field->value, binary);
+		printf("%s:\t0x%02lx 0b%s", field->name, field->value, binary);
 	}
+
+	if (field->long_name) {
+		printf(" (%s)", field->long_name);
+	}
+
 	if (field->desc) {
 		printf("\t# %s", field->desc);
 	}
@@ -110,12 +112,16 @@ void bitfield_print(struct bitfield *head)
 	}
 }
 
-void bitfield_describe(char *name, char *long_name, size_t start, size_t end,
-		       describe_fn desc)
+u64 bitfield_describe(char *name, char *long_name, size_t start, size_t end,
+		      describe_fn desc)
 {
 	struct bitfield field;
 	bitfield_new(_esr, name, long_name, start, end, desc, &field);
 	bitfield_print(&field);
+	if (desc) {
+		desc(&field);
+	}
+	return field.value;
 }
 
 void describe_il(struct bitfield *field)
@@ -161,7 +167,7 @@ void describe_fnv(struct bitfield *fnv)
 	if (fnv->value == 1) {
 		fnv->desc = "FAR is not valid, it holds an unknown value";
 	} else {
-		fnv->desc = "Far is valid";
+		fnv->desc = "FAR is valid";
 	}
 }
 
@@ -377,12 +383,30 @@ void describe_cv(struct bitfield *cv)
 	}
 }
 
-void describe_direction(struct bitfield *direction)
+void describe_offset(struct bitfield *offset)
+{
+	if (offset->value) {
+		offset->desc = "Add offset";
+	} else {
+		offset->desc = "Subtract offset";
+	}
+}
+
+void describe_mcr_direction(struct bitfield *direction)
 {
 	if (direction->value == 1) {
 		direction->desc = "Read from system register (MRC or VMRS)";
 	} else {
 		direction->desc = "Write to system reigster (MCR)";
+	}
+}
+
+void describe_ldc_direction(struct bitfield *direction)
+{
+	if (direction->value == 1) {
+		direction->desc = "Read from memory (LDC)";
+	} else {
+		direction->desc = "Write to memory (STC)";
 	}
 }
 
@@ -415,265 +439,115 @@ void describe_am(struct bitfield *am)
 
 void decode_iss_data_abort(struct bitfield *iss)
 {
-	struct bitfield isv;
-	struct bitfield sas;
-	struct bitfield sse;
-	struct bitfield srt;
-	struct bitfield sf;
-	struct bitfield ar;
-	struct bitfield res0;
-	struct bitfield vncr;
-	struct bitfield fnv;
-	struct bitfield ea;
-	struct bitfield cm;
-	struct bitfield s1ptw;
-	struct bitfield wnr;
 	struct bitfield dfsc;
-	struct bitfield set;
-	struct bitfield res1;
 
-	bitfield_new(iss->value, "ISV", "Instruction Syndrome Valid", 24, 24,
-		     NULL, &isv);
-	field_append(iss, &isv);
+	u64 isv = bitfield_describe("ISV", "Instruction Syndrome Valid", 24, 24,
+				    NULL);
 
-	if (isv.value == 1) {
-		bitfield_new(iss->value, "SAS", "Syndrome Access Size", 22, 23,
-			     describe_sas, &sas);
-		field_append(iss, &sas);
-
-		bitfield_new(iss->value, "SSE", "Syndrome Sign Extend", 21, 21,
-			     NULL, &sse);
-		field_append(iss, &sse);
-
-		bitfield_new(iss->value, "SRT", "Syndrome Register Transfer",
-			     16, 20, NULL, &srt);
-		field_append(iss, &srt);
-
-		bitfield_new(iss->value, "SF", "Sixty-Four", 15, 15, NULL, &sf);
-		field_append(iss, &sf);
-
-		bitfield_new(iss->value, "AR", "Acquire/Release", 14, 14,
-			     describe_ar, &ar);
-		field_append(iss, &ar);
+	if (isv == 1) {
+		bitfield_describe("SAS", "Syndrome Access Size", 22, 23,
+				  describe_sas);
+		bitfield_describe("SSE", "Syndrome Sign Extend", 21, 21, NULL);
+		bitfield_describe("SRT", "Syndrome Register Transfer", 16, 20,
+				  NULL);
+		bitfield_describe("SF", "Sixty-Four", 15, 15, NULL);
+		bitfield_describe("AR", "Acquire/Release", 14, 14, describe_ar);
 	} else {
-		bitfield_new(iss->value, "RES0", "Reserved", 14, 23, check_res0,
-			     &res0);
-		field_append(iss, &res0);
+		bitfield_describe("RES0", "Reserved", 14, 23, check_res0);
 	}
 
-	bitfield_new(iss->value, "VNCR", "", 13, 13, NULL, &vncr);
-	field_append(iss, &vncr);
+	bitfield_describe("VNCR", NULL, 13, 13, NULL);
 
-	bitfield_new(iss->value, "FnV", "FAR not Valid", 10, 10, describe_fnv,
-		     &fnv);
-	bitfield_new(iss->value, "EA", "External Abort type", 9, 9, NULL, &ea);
-	bitfield_new(iss->value, "CM", "Cache Maintenance", 8, 8, NULL, &cm);
-	bitfield_new(iss->value, "S1PTW", "Stage-1 translation table walk", 7,
-		     7, NULL, &s1ptw);
-	bitfield_new(iss->value, "WnR", "Write not Read", 6, 6, describe_wnr,
-		     &wnr);
 	bitfield_new(iss->value, "DFSC", "Data Faule Status Code", 0, 5,
 		     describe_dfsc, &dfsc);
 
 	if (dfsc.value == 0b010000) {
-		bitfield_new(iss->value, "SET", "Synchronous Error Type", 11,
-			     12, describe_set, &set);
-		field_append(iss, &set);
+		bitfield_describe("SET", "Synchronous Error Type", 11, 12,
+				  describe_set);
 	} else {
-		bitfield_new(iss->value, "RES1", "Reserved", 11, 12, NULL,
-			     &res1);
-		field_append(iss, &res1);
+		bitfield_describe("RES1", "Reserved", 11, 12, NULL);
 	}
-	field_append(iss, &fnv);
-	field_append(iss, &ea);
-	field_append(iss, &cm);
-	field_append(iss, &s1ptw);
-	field_append(iss, &wnr);
-	field_append(iss, &dfsc);
 
-	bitfield_print(iss);
+	bitfield_describe("FnV", "FAR not Valid", 10, 10, describe_fnv);
+	bitfield_describe("EA", "External Abort type", 9, 9, NULL);
+	bitfield_describe("CM", "Cache Maintenance", 8, 8, NULL);
+	bitfield_describe("S1PTW", "Stage-1 translation table walk", 7, 7,
+			  NULL);
+	bitfield_describe("WnR", "Write not Read", 6, 6, describe_wnr);
+	bitfield_print(&dfsc);
 }
 
 void decode_iss_res0(struct bitfield *iss)
 {
-	struct bitfield res0;
-	bitfield_new(iss->value, "RES0", "Reserved", 0, 24, check_res0, &res0);
-	field_append(iss, &res0);
-	bitfield_print(iss);
+	bitfield_describe("RES0", "Reserved", 0, 24, check_res0);
 }
 
 void decode_iss_wf(struct bitfield *iss)
 {
-	struct bitfield cv;
-	struct bitfield cond;
-	struct bitfield res0a;
-	struct bitfield rn;
-	struct bitfield res0b;
-	struct bitfield rv;
-	struct bitfield ti;
-
-	bitfield_new(iss->value, "CV", "Condition code valid", 24, 24,
-		     decribe_cv, &cv);
-	bitfield_new(iss->value, "COND",
-		     "Condition code of the trapped instruction", 20, 23, NULL,
-		     &cond);
-	bitfield_new(iss->value, "RES0", "Reserved", 10, 19, check_res0,
-		     &res0a);
-	bitfield_new(iss->value, "RN", "Register Number", 5, 9, NULL, &rn);
-	bitfield_new(iss->value, "RES0", "Reserved", 3, 4, check_res0, &res0b);
-	bitfield_new(iss->value, "RV", "Register valid", 2, 2, describe_rv,
-		     &rv);
-	bitfield_new(iss->value, "TI", "Trapped Instruction", 0, 1, describe_ti,
-		     &ti);
-
-	field_append(iss, &cv);
-	field_append(iss, &cond);
-	field_append(iss, &res0a);
-	field_append(iss, &rn);
-	field_append(iss, &res0b);
-	field_append(iss, &rv);
-	field_append(iss, &ti);
-
-	bitfield_print(iss);
+	bitfield_describe("CV", "Condition code valid", 24, 24, decribe_cv);
+	bitfield_describe("COND", "Condition code of the trapped instruction",
+			  20, 23, NULL);
+	bitfield_describe("RES0", "Reserved", 10, 19, check_res0);
+	bitfield_describe("RN", "Register Number", 5, 9, NULL);
+	bitfield_describe("RES0", "Reserved", 3, 4, check_res0);
+	bitfield_describe("RV", "Register valid", 2, 2, describe_rv);
+	bitfield_describe("TI", "Trapped Instruction", 0, 1, describe_ti);
 }
 
 void decode_iss_mcr(struct bitfield *iss)
 {
-	struct bitfield cv;
-	struct bitfield cond;
-	struct bitfield opc2;
-	struct bitfield opc1;
-	struct bitfield crn;
-	struct bitfield rt;
-	struct bitfield crm;
-	struct bitfield direction;
-
-	bitfield_new(iss->value, "CV", "Condition code valid", 24, 24,
-		     decribe_cv, &cv);
-	bitfield_new(iss->value, "COND",
-		     "Condition code of the trapped instruction", 20, 23, NULL,
-		     &cond);
-	bitfield_new(iss->value, "Opc2", NULL, 17, 19, NULL, &opc2);
-	bitfield_new(iss->value, "Opc1", NULL, 14, 17, NULL, &opc1);
-	bitfield_new(iss->value, "Crn", NULL, 10, 13, NULL, &crn);
-	bitfield_new(iss->value, "Rt", NULL, 5, 9, NULL, &rt);
-	bitfield_new(iss->value, "CRm", NULL, 1, 4, NULL, &crm);
-	bitfield_new(iss->value, "Direction",
-		     "Direction of the trapped instruction", 0, 0,
-		     describe_direction, &direction);
-
-	field_append(iss, &cv);
-	field_append(iss, &cond);
-	field_append(iss, &opc2);
-	field_append(iss, &opc1);
-	field_append(iss, &crn);
-	field_append(iss, &rt);
-	field_append(iss, &crm);
-	field_append(iss, &direction);
-
-	bitfield_print(iss);
+	bitfield_describe("CV", "Condition code valid", 24, 24, decribe_cv);
+	bitfield_describe("COND", "Condition code of the trapped instruction",
+			  20, 23, NULL);
+	bitfield_describe("Opc2", NULL, 17, 19, NULL);
+	bitfield_describe("Opc1", NULL, 14, 17, NULL);
+	bitfield_describe("Crn", NULL, 10, 13, NULL);
+	bitfield_describe("Rt", NULL, 5, 9, NULL);
+	bitfield_describe("CRm", NULL, 1, 4, NULL);
+	bitfield_describe("Direction", "Direction of the trapped instruction",
+			  0, 0, describe_mcr_direction);
 }
 
 void decode_iss_mcrr(struct bitfield *iss)
 {
-	struct bitfield cv;
-	struct bitfield cond;
-	struct bitfield opc1;
-	struct bitfield res0;
-	struct bitfield rt2;
-	struct bitfield rt;
-	struct bitfield crm;
-	struct bitfield direction;
-
-	bitfield_new(iss->value, "CV", "Condition code valid", 24, 24,
-		     describe_cv, &cv);
-	bitfield_new(iss->value, "COND",
-		     "Condition code of the trapped instruction", 20, 23, NULL,
-		     &cond);
-	bitfield_new(iss->value, "Opc1", NULL, 16, 19, NULL, &opc1);
-	bitfield_new(iss->value, "Res0", NULL, 15, 15, check_res0, &res0);
-	bitfield_new(iss->value, "Rt2", NULL, 10, 14, NULL, &rt2);
-	bitfield_new(iss->value, "Rt", NULL, 5, 9, NULL, &rt);
-	bitfield_new(iss->value, "CRm", NULL, 1, 4, NULL, &crm);
-	bitfield_new(iss->value, "Direction",
-		     "Direction of the trapped instruction", 0, 0,
-		     describe_direction, &direction);
-
-	field_append(iss, &cv);
-	field_append(iss, &cond);
-	field_append(iss, &opc1);
-	field_append(iss, &res0);
-	field_append(iss, &rt2);
-	field_append(iss, &rt);
-	field_append(iss, &crm);
-	field_append(iss, &direction);
-
-	bitfield_print(iss);
+	bitfield_describe("CV", "Condition code valid", 24, 24, describe_cv);
+	bitfield_describe("COND", "Condition code of the trapped instruction",
+			  20, 23, NULL);
+	bitfield_describe("Opc1", NULL, 16, 19, NULL);
+	bitfield_describe("Res0", NULL, 15, 15, check_res0);
+	bitfield_describe("Rt2", NULL, 10, 14, NULL);
+	bitfield_describe("Rt", NULL, 5, 9, NULL);
+	bitfield_describe("CRm", NULL, 1, 4, NULL);
+	bitfield_describe("Direction", "Direction of the trapped instruction",
+			  0, 0, describe_mcr_direction);
 }
 
 void decode_iss_ldc(struct bitfield *iss)
 {
-	struct bitfield cv;
-	struct bitfield cond;
-	struct bitfield imm8;
-	struct bitfield res0;
-	struct bitfield rn;
-	struct bitfield offset;
-	struct bitfield am;
-	struct bitfield direction;
-
-	bitfield_new(iss->value, "CV", "Condition code valid", 24, 24,
-		     describe_cv, &cv);
-	bitfield_new(iss->value, "COND",
-		     "Condition code of the trapped instruction", 20, 23, NULL,
-		     &cond);
-	bitfield_new(iss->value, "imm8",
-		     "Immediate value of the trapped instruction", 12, 19, NULL,
-		     &imm8);
-	bitfield_new(iss->value, "RES0", "Reserved", 10, 11, check_res0, &res0);
-	bitfield_new(
-		iss->value, "Rn",
+	bitfield_describe("CV", "Condition code valid", 24, 24, describe_cv);
+	bitfield_describe("COND", "Condition code of the trapped instruction",
+			  20, 23, NULL);
+	bitfield_describe("imm8", "Immediate value of the trapped instruction",
+			  12, 19, NULL);
+	bitfield_describe("RES0", "Reserved", 10, 11, check_res0);
+	bitfield_describe(
+		"Rn",
 		"General-purpose register number of the trapped instruction", 5,
-		9, NULL, &rn);
-	bitfield_new(iss->value, "Offset",
-		     "Whether the offset is added or substracted", 4, 4, NULL,
-		     &offset);
-	bitfield_new(iss->value, "AM", "Addressing Mode", 1, 3, describe_am,
-		     &am);
-	bitfield_new(iss->value, "Direction",
-		     "Direction of the trapped instruction", 0, 0,
-		     describe_direction, &direction);
-
-	field_append(iss, &cv);
-	field_append(iss, &cond);
-	field_append(iss, &imm8);
-	field_append(iss, &res0);
-	field_append(iss, &rn);
-	field_append(iss, &offset);
-	field_append(iss, &am);
-	field_append(iss, &direction);
-
-	bitfield_print(iss);
+		9, NULL);
+	bitfield_describe("Offset",
+			  "Whether the offset is added or substracted", 4, 4,
+			  describe_offset);
+	bitfield_describe("AM", "Addressing Mode", 1, 3, describe_am);
+	bitfield_describe("Direction", "Direction of the trapped instruction",
+			  0, 0, describe_ldc_direction);
 }
 
 void decode_iss_sve(struct bitfield *iss)
 {
-	struct bitfield cv;
-	struct bitfield cond;
-	struct bitfield res0;
-
-	bitfield_new(iss->value, "CV", "Condition code valid", 24, 24,
-		     describe_cv, &cv);
-	bitfield_new(iss->value, "COND",
-		     "Condition code of the trapped instruction", 20, 23, NULL,
-		     &cond);
-	bitfield_new(iss->value, "RES0", "Reserved", 0, 19, check_res0, &res0);
-
-	field_append(iss, &cv);
-	field_append(iss, &cond);
-	field_append(iss, &res0);
-
-	bitfield_print(iss);
+	bitfield_describe("CV", "Condition code valid", 24, 24, describe_cv);
+	bitfield_describe("COND", "Condition code of the trapped instruction",
+			  20, 23, NULL);
+	bitfield_describe("RES0", "Reserved", 0, 19, check_res0);
 }
 
 void decode_iss_default(struct bitfield *iss)
@@ -752,9 +626,8 @@ void decode(u64 esr)
 
 	bitfield_describe("IL", "Instruction Length", 25, 25, describe_il);
 
-	bitfield_new(esr, "ISS", "Instruction Specific Syndrome", 0, 24, NULL,
-		     &iss);
-	iss_decoder(&iss);
+	bitfield_new(esr, "ISS", "Instruction Specific Syndrome", 0, 24,
+		     iss_decoder, &iss);
 }
 
 int main(int argc, char *argv[])
