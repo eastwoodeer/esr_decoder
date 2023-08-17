@@ -1024,6 +1024,11 @@ decode_iss_fn decode_ec()
 			"Trapped MSR, MRS or System instruction execution in AArch64 state";
 		iss_decoder = decode_iss_msr;
 		break;
+	case 0b011001:
+		ec.desc =
+			"Access to SVE functionality trapped as a result of CPACR_EL1.ZEN, CPTR_EL2.ZEN, CPTR_EL2.TZ, or CPTR_EL3.EZ";
+		iss_decoder = decode_iss_res0;
+		break;
 	case 0b100101:
 		ec.desc =
 			"Data Abort taken without a change in Exception level";
