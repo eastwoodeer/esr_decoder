@@ -1,2 +1,4 @@
 esr
+esr_decoder
+*.o
 .tags
