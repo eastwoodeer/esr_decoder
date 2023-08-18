@@ -18,7 +18,6 @@ struct bitfield {
 };
 
 typedef void (*describe_fn)(struct bitfield *);
-typedef void (*decode_iss_fn)(struct bitfield *);
 
 static u64 get_bits(u64 reg, size_t start, size_t end)
 {
@@ -1520,10 +1519,10 @@ static void decode_iss_breakpoint(struct bitfield *iss)
 			  NULL);
 }
 
-decode_iss_fn decode_ec()
+describe_fn decode_ec()
 {
 	struct bitfield ec;
-	decode_iss_fn iss_decoder = decode_iss_default;
+	describe_fn iss_decoder = decode_iss_default;
 
 	bitfield_new(_esr, "EC", "Exception Class", 26, 31, NULL, &ec);
 
@@ -1716,7 +1715,7 @@ static void decode(u64 esr)
 	bitfield_describe("ISS2", "Instruction Specific Syndrome 2", 32, 36,
 			  NULL);
 
-	decode_iss_fn iss_decoder = decode_ec();
+	describe_fn iss_decoder = decode_ec();
 
 	bitfield_describe("IL", "Instruction Length", 25, 25, describe_il);
 
