@@ -20,14 +20,14 @@ struct bitfield {
 typedef void (*describe_fn)(struct bitfield *);
 typedef void (*decode_iss_fn)(struct bitfield *);
 
-u64 get_bits(u64 reg, size_t start, size_t end)
+static u64 get_bits(u64 reg, size_t start, size_t end)
 {
 	u64 width = end - start + 1;
 	return (reg >> start) & ((1 << width) - 1);
 }
 
-void bitfield_new(u64 reg, char *name, char *long_name, size_t start,
-		  size_t end, describe_fn desc, struct bitfield *field)
+static void bitfield_new(u64 reg, char *name, char *long_name, size_t start,
+			 size_t end, describe_fn desc, struct bitfield *field)
 {
 	memset(field, 0, sizeof(struct bitfield));
 	field->name = name;
@@ -45,7 +45,7 @@ void bitfield_new(u64 reg, char *name, char *long_name, size_t start,
 	}
 }
 
-void field_append(struct bitfield *head, struct bitfield *new)
+static void field_append(struct bitfield *head, struct bitfield *new)
 {
 	new->prev = head->prev;
 	new->next = head;
@@ -53,7 +53,7 @@ void field_append(struct bitfield *head, struct bitfield *new)
 	head->prev = new;
 }
 
-void decimal_to_binary(u64 n, size_t width, char *buf)
+static void decimal_to_binary(u64 n, size_t width, char *buf)
 {
 	int i = width - 1;
 	int j = 0;
@@ -73,7 +73,7 @@ void decimal_to_binary(u64 n, size_t width, char *buf)
 	buf[j] = '\0';
 }
 
-void field_description(struct bitfield *field)
+static void field_description(struct bitfield *field)
 {
 	char binary[128];
 
@@ -98,7 +98,7 @@ void field_description(struct bitfield *field)
 	printf("\n");
 }
 
-void bitfield_print(struct bitfield *head)
+static void bitfield_print(struct bitfield *head)
 {
 	field_description(head);
 	for (struct bitfield *p = head->next; p != head; p = p->next) {
@@ -107,8 +107,8 @@ void bitfield_print(struct bitfield *head)
 	}
 }
 
-u64 bitfield_describe(char *name, char *long_name, size_t start, size_t end,
-		      describe_fn desc)
+static u64 bitfield_describe(char *name, char *long_name, size_t start,
+			     size_t end, describe_fn desc)
 {
 	struct bitfield field;
 	bitfield_new(_esr, name, long_name, start, end, desc, &field);
@@ -119,7 +119,21 @@ u64 bitfield_describe(char *name, char *long_name, size_t start, size_t end,
 	return field.value;
 }
 
-void describe_il(struct bitfield *field)
+static void check_res0(struct bitfield *res0)
+{
+	if (res0->value != 0) {
+		res0->desc = "[ERROR]: Invalid RES0";
+	} else {
+		res0->desc = "Reserved";
+	}
+}
+
+static void describe_res0(size_t start, size_t end)
+{
+	bitfield_describe("RES0", "Reserved", start, end, check_res0);
+}
+
+static void describe_il(struct bitfield *field)
 {
 	if (field->value == 1) {
 		field->desc = "32-bit instruction trapped";
@@ -128,7 +142,7 @@ void describe_il(struct bitfield *field)
 	}
 }
 
-void describe_sas(struct bitfield *sas)
+static void describe_sas(struct bitfield *sas)
 {
 	switch (sas->value) {
 	case 0b00:
@@ -148,7 +162,7 @@ void describe_sas(struct bitfield *sas)
 	}
 }
 
-void describe_ar(struct bitfield *ar)
+static void describe_ar(struct bitfield *ar)
 {
 	if (ar->value == 1) {
 		ar->desc = "Acquire/Release semantics";
@@ -157,7 +171,7 @@ void describe_ar(struct bitfield *ar)
 	}
 }
 
-void describe_fnv(struct bitfield *fnv)
+static void describe_fnv(struct bitfield *fnv)
 {
 	if (fnv->value == 1) {
 		fnv->desc = "FAR is not valid, it holds an unknown value";
@@ -166,7 +180,7 @@ void describe_fnv(struct bitfield *fnv)
 	}
 }
 
-void describe_wnr(struct bitfield *wnr)
+static void describe_wnr(struct bitfield *wnr)
 {
 	if (wnr->value == 1) {
 		wnr->desc = "Abort caused by writing to memory";
@@ -175,135 +189,135 @@ void describe_wnr(struct bitfield *wnr)
 	}
 }
 
-void describe_dfsc(struct bitfield *dfsc)
+static void describe_fsc(struct bitfield *fsc)
 {
-	switch (dfsc->value) {
+	switch (fsc->value) {
 	case 0b000000:
-		dfsc->desc =
+		fsc->desc =
 			"Address size fault, level 0 of translation or translation table base register.";
 		break;
 	case 0b000001:
-		dfsc->desc = "Address size fault, level 1.";
+		fsc->desc = "Address size fault, level 1.";
 		break;
 	case 0b000010:
-		dfsc->desc = "Address size fault, level 2.";
+		fsc->desc = "Address size fault, level 2.";
 		break;
 	case 0b000011:
-		dfsc->desc = "Address size fault, level 3.";
+		fsc->desc = "Address size fault, level 3.";
 		break;
 	case 0b000100:
-		dfsc->desc = "Translation fault, level 0.";
+		fsc->desc = "Translation fault, level 0.";
 		break;
 	case 0b000101:
-		dfsc->desc = "Translation fault, level 1.";
+		fsc->desc = "Translation fault, level 1.";
 		break;
 	case 0b000110:
-		dfsc->desc = "Translation fault, level 2.";
+		fsc->desc = "Translation fault, level 2.";
 		break;
 	case 0b000111:
-		dfsc->desc = "Translation fault, level 3.";
+		fsc->desc = "Translation fault, level 3.";
 		break;
 	case 0b001001:
-		dfsc->desc = "Access flag fault, level 1.";
+		fsc->desc = "Access flag fault, level 1.";
 		break;
 	case 0b001010:
-		dfsc->desc = "Access flag fault, level 2.";
+		fsc->desc = "Access flag fault, level 2.";
 		break;
 	case 0b001011:
-		dfsc->desc = "Access flag fault, level 3.";
+		fsc->desc = "Access flag fault, level 3.";
 		break;
 	case 0b001000:
-		dfsc->desc = "Access flag fault, level 0.";
+		fsc->desc = "Access flag fault, level 0.";
 		break;
 	case 0b001100:
-		dfsc->desc = "Permission fault, level 0.";
+		fsc->desc = "Permission fault, level 0.";
 		break;
 	case 0b001101:
-		dfsc->desc = "Permission fault, level 1.";
+		fsc->desc = "Permission fault, level 1.";
 		break;
 	case 0b001110:
-		dfsc->desc = "Permission fault, level 2.";
+		fsc->desc = "Permission fault, level 2.";
 		break;
 	case 0b001111:
-		dfsc->desc = "Permission fault, level 3.";
+		fsc->desc = "Permission fault, level 3.";
 		break;
 	case 0b010000:
-		dfsc->desc =
+		fsc->desc =
 			"Synchronous External abort, not on translation table walk or hardware update of translation table.";
 		break;
 	case 0b010001:
-		dfsc->desc = "Synchronous Tag Check Fault.";
+		fsc->desc = "Synchronous Tag Check Fault.";
 		break;
 	case 0b010011:
-		dfsc->desc =
+		fsc->desc =
 			"Synchronous External abort on translation table walk or hardware update of translation table, level -1.";
 		break;
 	case 0b010100:
-		dfsc->desc =
+		fsc->desc =
 			"Synchronous External abort on translation table walk or hardware update of translation table, level 0.";
 		break;
 	case 0b010101:
-		dfsc->desc =
+		fsc->desc =
 			"Synchronous External abort on translation table walk or hardware update of translation table, level 1.";
 		break;
 	case 0b010110:
-		dfsc->desc =
+		fsc->desc =
 			"Synchronous External abort on translation table walk or hardware update of translation table, level 2.";
 		break;
 	case 0b010111:
-		dfsc->desc =
+		fsc->desc =
 			"Synchronous External abort on translation table walk or hardware update of translation table, level 3.";
 		break;
 	case 0b011000:
-		dfsc->desc =
+		fsc->desc =
 			"Synchronous parity or ECC error on memory access, not on translation table walk.";
 		break;
 	case 0b011011:
-		dfsc->desc =
+		fsc->desc =
 			"Synchronous parity or ECC error on memory access on translation table walk or hardware update of translation table, level -1.";
 		break;
 	case 0b011100:
-		dfsc->desc =
+		fsc->desc =
 			"Synchronous parity or ECC error on memory access on translation table walk or hardware update of translation table, level 0.";
 		break;
 	case 0b011101:
-		dfsc->desc =
+		fsc->desc =
 			"Synchronous parity or ECC error on memory access on translation table walk or hardware update of translation table, level 1.";
 		break;
 	case 0b011110:
-		dfsc->desc =
+		fsc->desc =
 			"Synchronous parity or ECC error on memory access on translation table walk or hardware update of translation table, level 2.";
 		break;
 
 	case 0b011111:
-		dfsc->desc =
+		fsc->desc =
 			"Synchronous parity or ECC error on memory access on translation table walk or hardware update of translation table, level 3.";
 		break;
 
 	case 0b100001:
-		dfsc->desc = "Alignment fault.";
+		fsc->desc = "Alignment fault.";
 		break;
 	case 0b101001:
-		dfsc->desc = "Address size fault, level -1.";
+		fsc->desc = "Address size fault, level -1.";
 		break;
 	case 0b101011:
-		dfsc->desc = "Translation fault, level -1.";
+		fsc->desc = "Translation fault, level -1.";
 		break;
 	case 0b110000:
-		dfsc->desc = "TLB conflict abort.";
+		fsc->desc = "TLB conflict abort.";
 		break;
 	case 0b110001:
-		dfsc->desc = "Unsupported atomic hardware update fault.";
+		fsc->desc = "Unsupported atomic hardware update fault.";
 		break;
 	case 0b110100:
-		dfsc->desc = "IMPLEMENTATION DEFINED fault (Lockdown).";
+		fsc->desc = "IMPLEMENTATION DEFINED fault (Lockdown).";
 		break;
 	case 0b110101:
-		dfsc->desc =
+		fsc->desc =
 			"IMPLEMENTATION DEFINED fault (Unsupported Exclusive or Atomic access).";
 		break;
 	default:
-		dfsc->desc = "[ERROR]: INVALID dfsc!";
+		fsc->desc = "[ERROR]: INVALID fsc!";
 	}
 }
 
@@ -324,16 +338,7 @@ void describe_set(struct bitfield *set)
 	}
 }
 
-void check_res0(struct bitfield *res0)
-{
-	if (res0->value != 0) {
-		res0->desc = "[ERROR]: Invalid RES0";
-	} else {
-		res0->desc = "Reserved";
-	}
-}
-
-void decribe_cv(struct bitfield *cv)
+static void decribe_cv(struct bitfield *cv)
 {
 	if (cv->value == 1) {
 		cv->desc = "COND is valid";
@@ -342,7 +347,7 @@ void decribe_cv(struct bitfield *cv)
 	}
 }
 
-void describe_rv(struct bitfield *rv)
+static void describe_rv(struct bitfield *rv)
 {
 	if (rv->value == 1) {
 		rv->desc = "Register number is valid";
@@ -351,7 +356,7 @@ void describe_rv(struct bitfield *rv)
 	}
 }
 
-void describe_ti(struct bitfield *ti)
+static void describe_ti(struct bitfield *ti)
 {
 	switch (ti->value) {
 	case 0b00:
@@ -369,7 +374,7 @@ void describe_ti(struct bitfield *ti)
 	}
 }
 
-void describe_cv(struct bitfield *cv)
+static void describe_cv(struct bitfield *cv)
 {
 	if (cv->value == 1) {
 		cv->desc = "COND is valid";
@@ -378,7 +383,7 @@ void describe_cv(struct bitfield *cv)
 	}
 }
 
-void describe_offset(struct bitfield *offset)
+static void describe_offset(struct bitfield *offset)
 {
 	if (offset->value) {
 		offset->desc = "Add offset";
@@ -387,7 +392,7 @@ void describe_offset(struct bitfield *offset)
 	}
 }
 
-void describe_mcr_direction(struct bitfield *direction)
+static void describe_mcr_direction(struct bitfield *direction)
 {
 	if (direction->value == 1) {
 		direction->desc = "Read from system register (MRC or VMRS)";
@@ -396,7 +401,7 @@ void describe_mcr_direction(struct bitfield *direction)
 	}
 }
 
-void describe_ldc_direction(struct bitfield *direction)
+static void describe_ldc_direction(struct bitfield *direction)
 {
 	if (direction->value == 1) {
 		direction->desc = "Read from memory (LDC)";
@@ -405,7 +410,7 @@ void describe_ldc_direction(struct bitfield *direction)
 	}
 }
 
-void describe_msr_direction(struct bitfield *direction)
+static void describe_msr_direction(struct bitfield *direction)
 {
 	if (direction->value == 1) {
 		direction->desc = "Read from system register (MRS)";
@@ -414,7 +419,7 @@ void describe_msr_direction(struct bitfield *direction)
 	}
 }
 
-void describe_am(struct bitfield *am)
+static void describe_am(struct bitfield *am)
 {
 	switch (am->value) {
 	case 0b000:
@@ -441,7 +446,7 @@ void describe_am(struct bitfield *am)
 	}
 }
 
-void describe_iss_ld64b(struct bitfield *iss)
+static void describe_iss_ld64b(struct bitfield *iss)
 {
 	switch (iss->value) {
 	case 0b00:
@@ -458,9 +463,406 @@ void describe_iss_ld64b(struct bitfield *iss)
 	}
 }
 
-void decode_iss_data_abort(struct bitfield *iss)
+static void describe_iord(struct bitfield *iord)
 {
-	struct bitfield dfsc;
+	if (iord->value == 1) {
+		iord->desc = "Data Key";
+	} else {
+		iord->desc = "Instruction Key";
+	}
+}
+
+static void describe_aorb(struct bitfield *aorb)
+{
+	if (aorb->value == 1) {
+		aorb->desc = "B Key";
+	} else {
+		aorb->desc = "A Key";
+	}
+}
+
+static void describe_smtc(struct bitfield *smtc)
+{
+	switch (smtc->value) {
+	case 0b000:
+		smtc->desc =
+			"Access to SME functionality trapped as a result of CPACR_EL1.SMEN, CPTR_EL2.SMEN, CPTR_EL2.TSM, or CPTR_EL3.ESM";
+		break;
+	case 0b001:
+		smtc->desc =
+			"Advanced SIMD, SVE, or SVE2 instruction trapped because PSTATE.SM is 1";
+		break;
+	case 0b010:
+		smtc->desc = "SME instruction trapped because PSTATE.SM is 0";
+		break;
+	case 0b011:
+		smtc->desc = "SME instruction trapped because PSTATE.ZA is 0";
+		break;
+	default:
+		smtc->desc = "[ERROR]: bad smtc";
+	}
+}
+
+static void describe_s2ptw(struct bitfield *s2ptw)
+{
+	if (s2ptw->value == 1) {
+		s2ptw->desc = "Fault on a stage 2 translation table walk";
+	} else {
+		s2ptw->desc = "Fault not on a stage 2 translation table walk";
+	}
+}
+
+static void describe_ind(struct bitfield *ind)
+{
+	if (ind->value == 1) {
+		ind->desc = "Instruction access";
+	} else {
+		ind->desc = "Data access";
+	}
+}
+
+static void describe_gpcsc(struct bitfield *gpcsc)
+{
+	switch (gpcsc->value) {
+	case 0b000000:
+		gpcsc->desc = "GPT address size fault at level 0";
+		break;
+	case 0b000100:
+		gpcsc->desc = "GPT walk fault at level 0";
+		break;
+	case 0b000101:
+		gpcsc->desc = "GPT walk fault at level 1";
+		break;
+	case 0b001100:
+		gpcsc->desc = "Granule protection fault at level 0";
+		break;
+	case 0b001101:
+		gpcsc->desc = "Granule protection fault at level 1";
+		break;
+	case 0b010100:
+		gpcsc->desc =
+			"Synchronous External abort on GPT fetch at level 0";
+		break;
+	case 0b010101:
+		gpcsc->desc =
+			"Synchronous External abort on GPT fetch at level 1";
+		break;
+	default:
+		gpcsc->desc = "[ERROR]: bad gpcsc";
+	}
+}
+
+static void describe_vncr(struct bitfield *vncr)
+{
+	if (vncr->value == 1) {
+		vncr->desc =
+			"The fault was generated by the use of VNCR_EL2, by an MRS or MSR instruction executed at EL1";
+	} else {
+		vncr->desc =
+			"The fault was not generated by the use of VNCR_EL2, by an MRS or MSR instruction executed at EL1";
+	}
+}
+
+static void describe_cm(struct bitfield *cm)
+{
+	if (cm->value == 1) {
+		cm->desc =
+			"The Data Abort was generated by either the execution of a cache maintenance instruction or by a synchronous fault on the execution of an address translation instruction. The DC ZVA, DC GVA, and DC GZVA instructions are not classified as cache maintenance instructions, and therefore their execution cannot cause this field to be set to 1.";
+	} else {
+		cm->desc =
+			"The Data Abort was not generated by the execution of one of the System instructions identified in the description of value 1";
+	}
+}
+
+static void describe_s1ptw(struct bitfield *s1ptw)
+{
+	if (s1ptw->value == 1) {
+		s1ptw->desc =
+			"Fault on the stage 2 translation of an access for a stage 1 translation table walk";
+	} else {
+		s1ptw->desc =
+			"Fault not on a stage 2 translation for a stage 1 translation table walk";
+	}
+}
+
+static void describe_gpc_wnr(struct bitfield *wnr)
+{
+	if (wnr->value == 1) {
+		wnr->desc =
+			"Abort caused by an instruction writing to a memory location";
+	} else {
+		wnr->desc =
+			"Abort caused by an instruction reading from a memory location";
+	}
+}
+
+static void describe_xfsc(struct bitfield *xfsc)
+{
+	switch (xfsc->value) {
+	case 0b100011:
+		xfsc->desc =
+			"Granule Protection Fault on translation table walk or hardware update of translation table, level -1";
+		break;
+	case 0b100100:
+		xfsc->desc =
+			"Granule Protection Fault on translation table walk or hardware update of translation table, level 0";
+		break;
+	case 0b100101:
+		xfsc->desc =
+			"Granule Protection Fault on translation table walk or hardware update of translation table, level 1";
+		break;
+	case 0b100110:
+		xfsc->desc =
+			"Granule Protection Fault on translation table walk or hardware update of translation table, level 2";
+		break;
+	case 0b100111:
+		xfsc->desc =
+			"Granule Protection Fault on translation table walk or hardware update of translation table, level 3";
+		break;
+	case 0b101000:
+		xfsc->desc =
+			"Granule Protection Fault, not on translation table walk or hardware update of translation table";
+		break;
+	default:
+		xfsc->desc = "[ERROR]: bad xFSC";
+	}
+}
+
+static void describe_tfv(struct bitfield *tfv)
+{
+	if (tfv->value == 1) {
+		tfv->desc =
+			"One or more floating-point exceptions occurred during an operation performed while executing the reported instruction. The IDF, IXF, UFF, OFF, DZF, and IOF bits indicate trapped floating-point exceptions that occurred";
+	} else {
+		tfv->desc =
+			"The IDF, IXF, UFF, OFF, DZF, and IOF bits do not hold valid information about trapped floating-point exceptions and are UNKNOWN";
+	}
+}
+
+static void describe_idf(struct bitfield *idf)
+{
+	if (idf->value == 1) {
+		idf->desc = "Input denormal floating-point exception occurred.";
+	} else {
+		idf->desc =
+			"Input denormal floating-point exception did not occur.";
+	}
+}
+
+static void describe_ixf(struct bitfield *ixf)
+{
+	if (ixf->value == 1) {
+		ixf->desc = "Inexact floating-point exception occurred.";
+	} else {
+		ixf->desc = "Inexact floating-point exception did not occur.";
+	}
+}
+
+static void describe_uff(struct bitfield *uff)
+{
+	if (uff->value == 1) {
+		uff->desc = "Underflow floating-point exception occurred.";
+	} else {
+		uff->desc = "Underflow floating-point exception did not occur.";
+	}
+}
+
+static void describe_off(struct bitfield *off)
+{
+	if (off->value == 1) {
+		off->desc = "Overflow floating-point exception occurred.";
+	} else {
+		off->desc = "Overflow floating-point exception did not occur.";
+	}
+}
+
+static void describe_dzf(struct bitfield *dzf)
+{
+	if (dzf->value == 1) {
+		dzf->desc = "Divide by Zero floating-point exception occurred.";
+	} else {
+		dzf->desc =
+			"Divide by Zero floating-point exception did not occur.";
+	}
+}
+
+static void describe_iof(struct bitfield *iof)
+{
+	if (iof->value == 1) {
+		iof->desc =
+			"Invalid Operation floating-point exception occurred.";
+	} else {
+		iof->desc =
+			"Invalid Operation floating-point exception did not occur.";
+	}
+}
+
+static void describe_ids(struct bitfield *ids)
+{
+	if (ids->value == 1) {
+		ids->desc =
+			"The rest of the ISS is encoded in an implementation-defined format";
+	} else {
+		ids->desc =
+			"The rest of the ISS is encoded according to the platform";
+	}
+}
+
+static void describe_iesb(struct bitfield *iesb)
+{
+	if (iesb->value == 1) {
+		iesb->desc =
+			"The SError interrupt was synchronized by the implicit error synchronization event and taken immediately.";
+	} else {
+		iesb->desc =
+			"The SError interrupt was not synchronized by the implicit error synchronization event or not taken immediately.";
+	}
+}
+
+static void describe_aet(struct bitfield *aet)
+{
+	switch (aet->value) {
+	case 0b000:
+		aet->desc = "Uncontainable (UC)";
+		break;
+	case 0b001:
+		aet->desc = "Unrecoverable state (UEU)";
+		break;
+	case 0b010:
+		aet->desc = "Restartable state (UEO)";
+		break;
+	case 0b011:
+		aet->desc = "Recoverable state (UER)";
+		break;
+	case 0x110:
+		aet->desc = "Corrected (CE)";
+		break;
+	default:
+		aet->desc = "[ERROR]: bad aet";
+	}
+}
+
+static void describe_serror_dfsc(struct bitfield *dfsc)
+{
+	switch (dfsc->value) {
+	case 0b000000:
+		dfsc->desc = "Uncategorized error";
+		break;
+	case 0b010001:
+		dfsc->desc = "Asynchronous SError interrupt";
+		break;
+	default:
+		dfsc->desc = "[ERROR]: bad dfsc";
+	}
+}
+
+static void describe_debug_fsc(struct bitfield *fsc)
+{
+	if (fsc->value == 0b100010) {
+		fsc->desc = "Debug execution";
+	} else {
+		fsc->desc = "[ERROR]: bad fsc";
+	}
+}
+
+static void describe_isv(struct bitfield *isv)
+{
+	if (isv->value == 1) {
+		isv->desc = "EX bit is valid";
+	} else {
+		isv->desc = "EX bit is RES0";
+	}
+}
+
+static void describe_ex(struct bitfield *ex)
+{
+	if (ex->value == 1) {
+		ex->desc = "A Load-Exclusive instruction was stepped";
+	} else {
+		ex->desc =
+			"Some instruction other than a Load-Exclusive was stepped";
+	}
+}
+
+static void describe_wptv(struct bitfield *wptv)
+{
+	if (wptv->value == 1) {
+		wptv->desc =
+			"The WPT field is valid, and holds the number of a watchpoint that triggered a Watchpoint exception";
+	} else {
+		wptv->desc =
+			"The WPT field is invalid, and holds an UNKNOWN value";
+	}
+}
+
+static void describe_wpf(struct bitfield *wpf)
+{
+	if (wpf->value == 1) {
+		wpf->desc =
+			"The watchpoint matched an access or set of contiguous accesses where the lowest accessed address was rounded down to the nearest multiple of 16 bytes and the highest accessed address was rounded up to the nearest multiple of 16 bytes minus 1, but the watchpoint might not have matched the original access or set of contiguous accesses";
+	} else {
+		wpf->desc =
+			"The watchpoint matched the original access or set of contiguous accesses";
+	}
+}
+
+static void describe_fnp(struct bitfield *fnp)
+{
+	if (fnp->value == 1) {
+		fnp->desc =
+			"The FAR holds any address within the smallest implemented translation granule that contains the virtual address of an access or set of contiguous accesses that triggered a Watchpoint exception";
+	} else {
+		fnp->desc =
+			"If the FnV field is 0, the FAR holds the virtual address of an access or set of contiguous accesses that triggered a Watchpoint exception";
+	}
+}
+
+static void describe_wp_vncr(struct bitfield *vncr)
+{
+	if (vncr->value == 1) {
+		vncr->desc =
+			"The watchpoint was generated by the use of VNCR_EL2 by EL1 code";
+	} else {
+		vncr->desc =
+			"The watchpoint was not generated by the use of VNCR_EL2 by EL1 code";
+	}
+}
+
+static void describe_wp_fnv(struct bitfield *fnv)
+{
+	if (fnv->value == 1) {
+		fnv->desc = "The FAR is invalid, and holds an UNKNOWN value";
+	} else {
+		fnv->desc =
+			"The FAR is valid, and its value is as described by the FnP field";
+	}
+}
+
+static void describe_wp_cm(struct bitfield *cm)
+{
+	if (cm->value == 1) {
+		cm->desc =
+			"The Watchpoint exception was generated by either the execution of a cache maintenance instruction or by a synchronous Watchpoint exception on the execution of an address translation instruction.";
+	} else {
+		cm->desc =
+			"The Watchpoint exception was not generated by the execution of one of the System instructions identified in the description of value 1";
+	}
+}
+
+static void describe_wp_wnr(struct bitfield *wnr)
+{
+	if (wnr->value == 1) {
+		wnr->desc =
+			"Watchpoint exception caused by an instruction writing to a memory location";
+	} else {
+		wnr->desc =
+			"Watchpoint exception caused by an instruction reading from a memory location";
+	}
+}
+
+static void decode_iss_data_abort(struct bitfield *iss)
+{
+	struct bitfield fsc;
 
 	u64 isv = bitfield_describe("ISV", "Instruction Syndrome Valid", 24, 24,
 				    NULL);
@@ -474,48 +876,48 @@ void decode_iss_data_abort(struct bitfield *iss)
 		bitfield_describe("SF", "Sixty-Four", 15, 15, NULL);
 		bitfield_describe("AR", "Acquire/Release", 14, 14, describe_ar);
 	} else {
-		bitfield_describe("RES0", "Reserved", 14, 23, check_res0);
+		describe_res0(14, 23);
 	}
 
 	bitfield_describe("VNCR", NULL, 13, 13, NULL);
 
 	bitfield_new(iss->value, "DFSC", "Data Faule Status Code", 0, 5,
-		     describe_dfsc, &dfsc);
+		     describe_fsc, &fsc);
 
-	if (dfsc.value == 0b010000) {
+	if (fsc.value == 0b010000) {
 		bitfield_describe("SET", "Synchronous Error Type", 11, 12,
 				  describe_set);
 	} else {
-		bitfield_describe("RES1", "Reserved", 11, 12, NULL);
+		describe_res0(11, 12);
 	}
 
 	bitfield_describe("FnV", "FAR not Valid", 10, 10, describe_fnv);
 	bitfield_describe("EA", "External Abort type", 9, 9, NULL);
 	bitfield_describe("CM", "Cache Maintenance", 8, 8, NULL);
 	bitfield_describe("S1PTW", "Stage-1 translation table walk", 7, 7,
-			  NULL);
+			  describe_s1ptw);
 	bitfield_describe("WnR", "Write not Read", 6, 6, describe_wnr);
-	bitfield_print(&dfsc);
+	bitfield_print(&fsc);
 }
 
-void decode_iss_res0(struct bitfield *iss)
+static void decode_iss_res0(struct bitfield *iss)
 {
-	bitfield_describe("RES0", "Reserved", 0, 24, check_res0);
+	describe_res0(0, 24);
 }
 
-void decode_iss_wf(struct bitfield *iss)
+static void decode_iss_wf(struct bitfield *iss)
 {
 	bitfield_describe("CV", "Condition code valid", 24, 24, decribe_cv);
 	bitfield_describe("COND", "Condition code of the trapped instruction",
 			  20, 23, NULL);
-	bitfield_describe("RES0", "Reserved", 10, 19, check_res0);
+	describe_res0(10, 19);
 	bitfield_describe("RN", "Register Number", 5, 9, NULL);
-	bitfield_describe("RES0", "Reserved", 3, 4, check_res0);
+	describe_res0(3, 4);
 	bitfield_describe("RV", "Register valid", 2, 2, describe_rv);
 	bitfield_describe("TI", "Trapped Instruction", 0, 1, describe_ti);
 }
 
-void decode_iss_mcr(struct bitfield *iss)
+static void decode_iss_mcr(struct bitfield *iss)
 {
 	bitfield_describe("CV", "Condition code valid", 24, 24, decribe_cv);
 	bitfield_describe("COND", "Condition code of the trapped instruction",
@@ -529,13 +931,13 @@ void decode_iss_mcr(struct bitfield *iss)
 			  describe_mcr_direction);
 }
 
-void decode_iss_mcrr(struct bitfield *iss)
+static void decode_iss_mcrr(struct bitfield *iss)
 {
 	bitfield_describe("CV", "Condition code valid", 24, 24, describe_cv);
 	bitfield_describe("COND", "Condition code of the trapped instruction",
 			  20, 23, NULL);
 	bitfield_describe("Opc1", NULL, 16, 19, NULL);
-	bitfield_describe("Res0", NULL, 15, 15, check_res0);
+	describe_res0(15, 15);
 	bitfield_describe("Rt2", NULL, 10, 14, NULL);
 	bitfield_describe("Rt", NULL, 5, 9, NULL);
 	bitfield_describe("CRm", NULL, 1, 4, NULL);
@@ -543,14 +945,14 @@ void decode_iss_mcrr(struct bitfield *iss)
 			  describe_mcr_direction);
 }
 
-void decode_iss_ldc(struct bitfield *iss)
+static void decode_iss_ldc(struct bitfield *iss)
 {
 	bitfield_describe("CV", "Condition code valid", 24, 24, describe_cv);
 	bitfield_describe("COND", "Condition code of the trapped instruction",
 			  20, 23, NULL);
 	bitfield_describe("imm8", "Immediate value of the trapped instruction",
 			  12, 19, NULL);
-	bitfield_describe("RES0", "Reserved", 10, 11, check_res0);
+	describe_res0(10, 11);
 	bitfield_describe(
 		"Rn",
 		"General-purpose register number of the trapped instruction", 5,
@@ -563,28 +965,28 @@ void decode_iss_ldc(struct bitfield *iss)
 			  describe_ldc_direction);
 }
 
-void decode_iss_sve(struct bitfield *iss)
+static void decode_iss_sve(struct bitfield *iss)
 {
 	bitfield_describe("CV", "Condition code valid", 24, 24, describe_cv);
 	bitfield_describe("COND", "Condition code of the trapped instruction",
 			  20, 23, NULL);
-	bitfield_describe("RES0", "Reserved", 0, 19, check_res0);
+	describe_res0(0, 19);
 }
 
-void decode_iss_ld64b(struct bitfield *iss)
+static void decode_iss_ld64b(struct bitfield *iss)
 {
 	bitfield_describe("ISS", NULL, 0, 24, describe_iss_ld64b);
 }
 
-void decode_iss_bti(struct bitfield *iss)
+static void decode_iss_bti(struct bitfield *iss)
 {
-	bitfield_describe("RES0", "Reserved", 2, 24, check_res0);
+	describe_res0(2, 24);
 	bitfield_describe("BTYPE", "PSTATE.BTYPE value", 0, 1, NULL);
 }
 
-void decode_iss_hvc(struct bitfield *iss)
+static void decode_iss_hvc(struct bitfield *iss)
 {
-	bitfield_describe("RES0", "Reserved", 16, 24, check_res0);
+	describe_res0(16, 24);
 	bitfield_describe("imm16", "Value of the immediate field", 0, 15, NULL);
 }
 
@@ -919,9 +1321,9 @@ char *sysreg_name(u64 op0, u64 op1, u64 op2, u64 crn, u64 crm)
 	}
 }
 
-void decode_iss_msr(struct bitfield *iss)
+static void decode_iss_msr(struct bitfield *iss)
 {
-	bitfield_describe("RES0", "Reserved", 22, 24, check_res0);
+	describe_res0(22, 24);
 	u64 op0 = bitfield_describe("Op0", NULL, 20, 21, NULL);
 	u64 op2 = bitfield_describe("Op2", NULL, 17, 19, NULL);
 	u64 op1 = bitfield_describe("Op1", NULL, 14, 16, NULL);
@@ -943,10 +1345,179 @@ void decode_iss_msr(struct bitfield *iss)
 	}
 }
 
-void decode_iss_default(struct bitfield *iss)
+static void decode_iss_tstart(struct bitfield *iss)
+{
+	describe_res0(10, 24);
+	bitfield_describe(
+		"Rd",
+		"General-purpose register number used for the destination", 5,
+		9, NULL);
+	describe_res0(0, 4);
+}
+
+static void decode_iss_pauth(struct bitfield *iss)
+{
+	describe_res0(2, 24);
+	bitfield_describe("IorD", "Instruction key or Data key", 1, 1,
+			  describe_iord);
+	bitfield_describe("AorB", "A key or B key", 0, 0, describe_aorb);
+}
+
+static void decode_iss_sme(struct bitfield *iss)
+{
+	describe_res0(3, 24);
+	bitfield_describe("SMTC", "SME Trap Code", 0, 2, describe_smtc);
+}
+
+static void decode_iss_gpc(struct bitfield *iss)
+{
+	describe_res0(22, 24);
+	bitfield_describe("S2PTW", "Stage-2 translation table walk", 21, 21,
+			  describe_s2ptw);
+	u64 ind = bitfield_describe("InD", "Instruction or Data access", 20, 20,
+				    describe_ind);
+	bitfield_describe("GPCSC", "Granule Protection Check Status Code", 14,
+			  19, describe_gpcsc);
+	bitfield_describe("VNCR", NULL, 13, 13, describe_vncr);
+	describe_res0(11, 12);
+	describe_res0(9, 10);
+	bitfield_describe("CM", "Cache maintenance", 8, 8, describe_cm);
+	bitfield_describe("S1PTW", "Stage-1 translation table walk", 7, 7,
+			  describe_s1ptw);
+	if (ind == 1) {
+		describe_res0(6, 6);
+	} else {
+		bitfield_describe("WnR", "Write or Read", 6, 6,
+				  describe_gpc_wnr);
+	}
+	bitfield_describe("xFSC", "Instruction or Data Fault Status Code", 0, 5,
+			  describe_xfsc);
+}
+
+static void decode_iss_default(struct bitfield *iss)
 {
 	iss->desc = "[ERROR]: bad iss";
 	bitfield_print(iss);
+}
+
+static void decode_iss_instruction_abort(struct bitfield *iss)
+{
+	struct bitfield fsc;
+
+	describe_res0(13, 24);
+	bitfield_new(iss->value, "IFSC", "Instruction Fault Status Code", 0, 5,
+		     describe_fsc, &fsc);
+	if (fsc.value == 0b010000) {
+		bitfield_describe("SET", "Synchronous Error Type", 11, 12,
+				  describe_set);
+	} else {
+		describe_res0(11, 12);
+	}
+	bitfield_describe("FnV", "FAR not Valid", 10, 10, describe_fnv);
+	bitfield_describe("EA", "External About type", 9, 9, NULL);
+	describe_res0(8, 8);
+	bitfield_describe("S1PTW", "Stage-1 translation table walk", 7, 7,
+			  describe_s1ptw);
+	describe_res0(6, 6);
+	bitfield_print(&fsc);
+}
+
+static void decode_iss_fp(struct bitfield *iss)
+{
+	describe_res0(24, 24);
+	bitfield_describe("TFV", "Trapped Fault Valid", 23, 23, describe_tfv);
+	describe_res0(11, 22);
+	bitfield_describe("VECITR", "RES1 or UNKNOWN", 8, 10, NULL);
+	bitfield_describe("IDF", "Input Denomal", 7, 7, describe_idf);
+	describe_res0(5, 6);
+	bitfield_describe("IXF", "Inexact", 4, 4, describe_ixf);
+	bitfield_describe("UFF", "Underflow", 3, 3, describe_uff);
+	bitfield_describe("OFF", "Overflow", 2, 2, describe_off);
+	bitfield_describe("DZF", "Divide by Zero", 1, 1, describe_dzf);
+	bitfield_describe("IOF", "Invalid Operation", 0, 0, describe_iof);
+}
+
+static void decode_iss_serror(struct bitfield *iss)
+{
+	struct bitfield dfsc;
+	u64 ids = bitfield_describe("IDS", "Implementation Defined Syndrome",
+				    24, 24, describe_ids);
+	if (ids == 1) {
+		bitfield_describe("IMPDEF", "Implementation defined", 0, 23,
+				  NULL);
+		return;
+	}
+
+	describe_res0(14, 23);
+	bitfield_new(iss->value, "DFSC", "Data Fault Status Code", 0, 5,
+		     describe_serror_dfsc, &dfsc);
+	if (dfsc.value == 0b010001) {
+		bitfield_describe("IESB",
+				  "Implicit Error Synchronisation event", 13,
+				  13, describe_iesb);
+	} else {
+		describe_res0(13, 13);
+	}
+	bitfield_describe("AET", "Asynchronous Error Type", 10, 12,
+			  describe_aet);
+	if (dfsc.value == 0b010001) {
+		bitfield_describe("EA", "External Abort type", 9, 9, NULL);
+	} else {
+		describe_res0(9, 9);
+	}
+	describe_res0(6, 8);
+	bitfield_print(&dfsc);
+}
+
+static void decode_iss_breakpoint_vector_catch(struct bitfield *iss)
+{
+	describe_res0(6, 24);
+	bitfield_describe("IFSC", "Instruction Fault Status Code", 0, 5,
+			  describe_debug_fsc);
+}
+
+static void decode_iss_software_step(struct bitfield *iss)
+{
+	u64 isv = bitfield_describe("ISV", "Instruction Syndrome Valid", 24, 24,
+				    describe_isv);
+	describe_res0(7, 23);
+	if (isv == 1) {
+		bitfield_describe("EX", "Exclusive operation", 6, 6,
+				  describe_ex);
+	} else {
+		describe_res0(6, 6);
+	}
+	bitfield_describe("IFSC", "Instruction Fault Status Code", 0, 5,
+			  describe_debug_fsc);
+}
+
+static void decode_iss_watchpoint(struct bitfield *iss)
+{
+	describe_res0(24, 24);
+	bitfield_describe("WPT", "Watchpoint number", 18, 23, NULL);
+	bitfield_describe("WPTV", "Watchpoint number Valid", 17, 17,
+			  describe_wptv);
+	bitfield_describe("WPF", "Watchpoint might be false-positive", 16, 16,
+			  describe_wpf);
+	bitfield_describe("FnP", "FAR not Precise", 15, 15, describe_fnp);
+	describe_res0(14, 14);
+	bitfield_describe("VNCR", NULL, 13, 13, describe_wp_vncr);
+	describe_res0(11, 12);
+	bitfield_describe("FnV", "FAR not Valid", 10, 10, describe_wp_fnv);
+	describe_res0(9, 9);
+	bitfield_describe("CM", "Cache Maintenance", 8, 8, describe_wp_cm);
+	describe_res0(7, 7);
+	bitfield_describe("WnR", "Write not Read", 6, 6, describe_wp_wnr);
+	bitfield_describe("DFSC", "Data Fault Status Code", 0, 5,
+			  describe_debug_fsc);
+}
+
+static void decode_iss_breakpoint(struct bitfield *iss)
+{
+	describe_res0(16, 24);
+	bitfield_describe("Comment",
+			  "Instruction comment field or immediate field", 0, 15,
+			  NULL);
 }
 
 decode_iss_fn decode_ec()
@@ -1029,10 +1600,99 @@ decode_iss_fn decode_ec()
 			"Access to SVE functionality trapped as a result of CPACR_EL1.ZEN, CPTR_EL2.ZEN, CPTR_EL2.TZ, or CPTR_EL3.EZ";
 		iss_decoder = decode_iss_res0;
 		break;
+	case 0b011011:
+		ec.desc =
+			"Exception from an access to a TSTART instruction at EL0 when SCTLR_EL1.TME0 == 0, EL0 when SCTLR_EL2.TME0 == 0, at EL1 when SCTLR_EL1.TME == 0, at EL2 when SCTLR_EL2.TME == 0 or at EL3 when SCTLR_EL3.TME == 0";
+		iss_decoder = decode_iss_tstart;
+		break;
+	case 0b011100:
+		ec.desc =
+			"Exception from a Pointer Authentication instruction authentication failure";
+		iss_decoder = decode_iss_pauth;
+		break;
+	case 0b011101:
+		ec.desc =
+			"Access to SME functionality trapped as a result of CPACR_EL1.SMEN, CPTR_EL2.SMEN, CPTR_EL2.TSM, CPTR_EL3.ESM, or an attempted execution of an instruction that is illegal because of the value of PSTATE.SM or PSTATE.ZA";
+		iss_decoder = decode_iss_sme;
+		break;
+	case 0b011110:
+		ec.desc = "Exception from a Granule Protection Check";
+		iss_decoder = decode_iss_gpc;
+		break;
+	case 0b100000:
+		ec.desc = "Instruction Abort from a lower Exception level";
+		iss_decoder = decode_iss_instruction_abort;
+		break;
+	case 0b100001:
+		ec.desc =
+			"Instruction Abort taken without a change in Exception level";
+		iss_decoder = decode_iss_instruction_abort;
+		break;
+	case 0b100010:
+		ec.desc = "PC alignment fault exception";
+		iss_decoder = decode_iss_res0;
+		break;
+	case 0b100100:
+		ec.desc = "Data Abort from a lower Exception level";
+		iss_decoder = decode_iss_data_abort;
 	case 0b100101:
 		ec.desc =
 			"Data Abort taken without a change in Exception level";
 		iss_decoder = decode_iss_data_abort;
+		break;
+	case 0b100110:
+		ec.desc = "SP alignment fault exception";
+		iss_decoder = decode_iss_res0;
+		break;
+	case 0b101000:
+		ec.desc =
+			"Trapped floating-ppint exception taken from AArch32 state";
+		iss_decoder = decode_iss_fp;
+		break;
+	case 0b101100:
+		ec.desc =
+			"Trapped floating-ppint exception taken from AArch64 state";
+		iss_decoder = decode_iss_fp;
+		break;
+	case 0b101111:
+		ec.desc = "SError interrupt";
+		iss_decoder = decode_iss_serror;
+		break;
+	case 0b110000:
+		ec.desc = "Breakpoint execution from a lower Exception level";
+		iss_decoder = decode_iss_breakpoint_vector_catch;
+		break;
+	case 0b110001:
+		ec.desc =
+			"Breakpoint exception taken without a change in Exception level";
+		iss_decoder = decode_iss_breakpoint_vector_catch;
+		break;
+	case 0b110010:
+		ec.desc =
+			"Software Step exception from a lower Exception level";
+		iss_decoder = decode_iss_software_step;
+		break;
+	case 0b110011:
+		ec.desc =
+			"Software Step exception taken without a change in Exception level";
+		iss_decoder = decode_iss_software_step;
+		break;
+	case 0b110100:
+		ec.desc = "Watchpoint exception from a lower Exception level";
+		iss_decoder = decode_iss_watchpoint;
+		break;
+	case 0b110101:
+		ec.desc =
+			"Watchpoint exception taken without a change in Exception level";
+		iss_decoder = decode_iss_watchpoint;
+		break;
+	case 0b111000:
+		ec.desc = "BKPT instruction execution in AArch32 state";
+		iss_decoder = decode_iss_breakpoint;
+		break;
+	case 0b111100:
+		ec.desc = "BRK instruction execution in AArch64 state";
+		iss_decoder = decode_iss_breakpoint;
 		break;
 	default:
 		ec.desc = "[ERROR]: bad ec";
@@ -1044,7 +1704,7 @@ decode_iss_fn decode_ec()
 	return iss_decoder;
 }
 
-void decode(u64 esr)
+static void decode(u64 esr)
 {
 	struct bitfield res0;
 	struct bitfield iss2;
@@ -1052,7 +1712,7 @@ void decode(u64 esr)
 
 	_esr = esr;
 
-	bitfield_describe("RES0", "Reserved", 37, 63, check_res0);
+	describe_res0(37, 63);
 	bitfield_describe("ISS2", "Instruction Specific Syndrome 2", 32, 36,
 			  NULL);
 
